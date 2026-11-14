@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>STAR GALAGA — 모바일 레트로 갤러그 아케이드 슈팅 PWA</title>
+  <meta name="description" content="스마트폰과 PC에서 설치 없이 가볍게 즐기는 정통 갤러그 스타일 레트로 스페이스 슈팅 게임. 오프라인 플레이 및 홈 화면 PWA 앱 설치를 지원합니다." />
+  <meta name="theme-color" content="#06080e" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="스타갤러그" />
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+    <!-- Top Arcade HUD -->
+    <header class="hud-header" aria-label="게임 상태 표시줄">
+      <div class="hud-stat">
+        <span class="hud-label hud-label--crimson">1UP SCORE</span>
+        <span class="hud-value" id="score-display">0</span>
+      </div>
+
+      <div class="hud-stat hud-stat--center">
+        <span class="hud-label hud-label--amber">HIGH SCORE</span>
+        <span class="hud-value" id="high-score-display">0</span>
+      </div>
+
+      <div class="hud-stat hud-stat--right">
+        <div class="hud-toolbar">
+          <button type="button" class="icon-btn" id="btn-autofire" aria-pressed="true" title="자동 발사 전환">
+            AUTO
+          </button>
+          <button type="button" class="icon-btn" id="btn-sound" aria-pressed="true" title="효과음 켜기/끄기">
+            🔊
+          </button>
+          <button type="button" class="icon-btn" id="btn-pause" aria-label="일시정지" title="일시정지">
+            ⏸
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Space Stage -->
+    <main class="stage-viewport" id="stage-viewport">
+      <canvas id="game-canvas" aria-label="스타 갤러그 우주 전투 화면"></canvas>
+
+      <div class="wave-banner" id="wave-banner" role="status" aria-live="polite">
+        <div class="wave-banner__title" id="wave-banner-title">STAGE 1</div>
+        <div class="wave-banner__sub" id="wave-banner-sub">편대 진입 중 — 전투 준비!</div>
+      </div>
+
+      <!-- Start / Title Screen -->
+      <section class="overlay-screen" id="start-screen" aria-labelledby="main-title">
+        <div class="modal-panel">
+          <img src="./icons/icon-192.png" alt="스타 갤러그 전투기 엠블럼" class="brand-emblem" width="72" height="72" />
+          <h1 class="game-title" id="main-title">STAR <span>GALAGA</span></h1>
+          <p class="game-subtitle">손가락 하나로 가볍게 즐기는 정통 편대 스페이스 슈팅</p>
+
+          <div class="controls-guide">
+            <div>📱 <strong>모바일:</strong> 화면 아래쪽 어디든 좌우로 슬라이드 (자동 발사)</div>
+            <div>💻 <strong>PC 키보드:</strong> <strong>← →</strong> 이동 · <strong>Space</strong> 발사 · <strong>B</strong> 초신성 폭탄</div>
+            <div>⚡ <strong>특수 기믹:</strong> 듀얼 파이터 합체 · 보스 트랙터 빔 · 3스테이지마다 보너스 편대!</div>
+          </div>
+
+          <button type="button" class="primary-cta" id="btn-start-game">
+            🚀 출격 시작 (INSERT COIN)
+          </button>
+
+          <button type="button" class="secondary-cta" id="btn-install-pwa">
+            📲 스마트폰에 앱(PWA)으로 설치
+          </button>
+
+          <div class="ios-guide-box" id="ios-install-guide" hidden>
+            💡 <strong>아이폰(Safari) 설치 방법:</strong> 브라우저 하단의 <strong>[공유 ↑]</strong> 버튼을 누른 뒤 <strong>[홈 화면에 추가]</strong>를 선택하면 전체화면 앱으로 작동합니다!
+          </div>
+        </div>
+      </section>
+
+      <!-- Pause Screen -->
+      <section class="overlay-screen" id="pause-screen" hidden aria-labelledby="pause-title">
+        <div class="modal-panel">
+          <h2 class="game-title" id="pause-title">PAUSED</h2>
+          <p class="game-subtitle">전투가 일시정지되었습니다.</p>
+          <div style="margin-top: 20px;">
+            <button type="button" class="primary-cta" id="btn-resume-game">
+              ▶ 전투 재개
+            </button>
+            <button type="button" class="secondary-cta" id="btn-restart-from-pause">
+              🔄 처음부터 다시 시작
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Game Over Screen -->
+      <section class="overlay-screen" id="gameover-screen" hidden aria-labelledby="gameover-title">
+        <div class="modal-panel">
+          <h2 class="game-title" id="gameover-title">GAME <span>OVER</span></h2>
+          <p class="game-subtitle" id="gameover-record-msg">훌륭한 비행이었습니다, 파일럿!</p>
+
+          <div class="score-summary">
+            <div class="summary-item">
+              <span class="summary-item__label">최종 점수</span>
+              <span class="summary-item__val" id="final-score">0</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-item__label">도달 스테이지</span>
+              <span class="summary-item__val" id="final-stage">1</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-item__label">명중률</span>
+              <span class="summary-item__val" id="final-accuracy">0%</span>
+            </div>
+          </div>
+
+          <button type="button" class="primary-cta" id="btn-retry-game">
+            🔥 다시 출격하기
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Mobile Tactile Footer -->
+    <footer class="control-deck" aria-label="전투 보조 조작부">
+      <div class="status-strip">
+        <div class="lives-rack" id="lives-rack" title="남은 잔기"></div>
+        <div class="powerup-badges" id="powerup-badges">
+          <span class="power-tag" id="stage-chip">STG 1</span>
+        </div>
+      </div>
+
+      <div class="deck-actions">
+        <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="화면 전체 적 탄막 제거 및 광역 타격">
+          💥 초신성 폭탄 <span id="bomb-count">x2</span>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="./game.js"></script>
+</body>
+</html>
