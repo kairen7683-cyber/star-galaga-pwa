@@ -291,10 +291,20 @@
   const btnInstallPwa = document.getElementById('btn-install-pwa');
   const iosGuideEl = document.getElementById('ios-install-guide');
 
-  // Register Service Worker for offline PWA support
+  // Register Service Worker for offline PWA support & immediate auto-update
   if ('serviceWorker' in navigator) {
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing && state.mode === 'title') {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
+      navigator.serviceWorker
+        .register('./sw.js')
+        .then((reg) => reg.update().catch(() => {}))
+        .catch(() => {});
     });
   }
 
@@ -353,8 +363,8 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
     if (state.player) {
-      state.player.y = H - 56;
       state.player.x = Math.max(26, Math.min(W - 26, state.player.x));
+      state.player.y = Math.max(58, Math.min(H - 34, state.player.y));
     }
   }
   window.addEventListener('resize', resizeCanvas);
@@ -637,14 +647,28 @@
   }
 
   /* =========================================================================
-   * 7. INPUT HANDLING (1:1 Relative Touch Slide + Keyboard + Buttons)
+   * 7. INPUT HANDLING (Full 2D Relative Touch Slide + 8-Way Keyboard + Buttons)
    * ========================================================================= */
-  const keys = { left: false, right: false, shoot: false };
-  const touchState = { active: false, pointerId: null, lastX: 0, lastTapTime: 0 };
+  const keys = { left: false, right: false, up: false, down: false, shoot: false };
+  const touchState = { active: false, pointerId: null, lastX: 0, lastY: 0 };
 
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+      keys.left = true;
+      if (state.mode === 'playing') e.preventDefault();
+    }
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+      keys.right = true;
+      if (state.mode === 'playing') e.preventDefault();
+    }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+      keys.up = true;
+      if (state.mode === 'playing') e.preventDefault();
+    }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+      keys.down = true;
+      if (state.mode === 'playing') e.preventDefault();
+    }
     if (e.code === 'Space') {
       keys.shoot = true;
       if (state.mode === 'playing') e.preventDefault();
@@ -661,6 +685,8 @@
   window.addEventListener('keyup', (e) => {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = false;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = false;
     if (e.code === 'Space') keys.shoot = false;
   });
 
@@ -671,6 +697,7 @@
     touchState.active = true;
     touchState.pointerId = e.pointerId;
     touchState.lastX = e.clientX;
+    touchState.lastY = e.clientY;
 
     // Manual fire tap when autoFire is turned off
     if (!state.autoFire) {
@@ -681,10 +708,14 @@
   canvas.addEventListener('pointermove', (e) => {
     if (!touchState.active || e.pointerId !== touchState.pointerId || state.mode !== 'playing') return;
     const dx = (e.clientX - touchState.lastX) * 1.25;
+    const dy = (e.clientY - touchState.lastY) * 1.25;
     touchState.lastX = e.clientX;
+    touchState.lastY = e.clientY;
     if (state.player) {
-      const margin = state.player.dual ? 34 : 20;
-      state.player.x = Math.max(margin, Math.min(W - margin, state.player.x + dx));
+      const marginX = state.player.dual ? 34 : 20;
+      state.player.x = Math.max(marginX, Math.min(W - marginX, state.player.x + dx));
+      state.player.y = Math.max(58, Math.min(H - 34, state.player.y + dy));
+      state.player.thrust = dy < -0.6 ? 1 : dy > 0.6 ? -1 : 0;
     }
   });
 
@@ -692,6 +723,7 @@
     if (e.pointerId === touchState.pointerId) {
       touchState.active = false;
       touchState.pointerId = null;
+      if (state.player) state.player.thrust = 0;
     }
   }
   canvas.addEventListener('pointerup', endPointer);
@@ -877,6 +909,8 @@
       triggerGameOver();
     } else {
       p.x = W / 2;
+      p.y = H - 56;
+      p.thrust = 0;
       p.rapidTimer = 0;
       p.invulnTimer = 2.6;
       updateHud();
@@ -1006,7 +1040,7 @@
       if (state.shockwave.r >= state.shockwave.maxR) state.shockwave = null;
     }
 
-    // Player update
+    // Player update (Full 2D flight: forward/backward + left/right)
     const p = state.player;
     if (p) {
       if (p.invulnTimer > 0) p.invulnTimer = Math.max(0, p.invulnTimer - dt);
@@ -1016,10 +1050,16 @@
       }
       if (p.fireCooldown > 0) p.fireCooldown = Math.max(0, p.fireCooldown - dt);
 
-      const moveDir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-      if (moveDir !== 0) {
-        const margin = p.dual ? 34 : 20;
-        p.x = Math.max(margin, Math.min(W - margin, p.x + moveDir * 310 * dt));
+      const moveX = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+      const moveY = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+      if (moveX !== 0 || moveY !== 0) {
+        const len = Math.hypot(moveX, moveY) || 1;
+        const marginX = p.dual ? 34 : 20;
+        p.x = Math.max(marginX, Math.min(W - marginX, p.x + (moveX / len) * 310 * dt));
+        p.y = Math.max(58, Math.min(H - 34, p.y + (moveY / len) * 300 * dt));
+        p.thrust = moveY < 0 ? 1 : moveY > 0 ? -1 : 0;
+      } else if (!touchState.active) {
+        p.thrust = 0;
       }
 
       if (state.autoFire || keys.shoot) {
@@ -1100,15 +1140,15 @@
 
           // Shoot aimed bullet during dive
           const maxDiveShots = state.stage >= 4 ? 2 : 1;
-          if (en.shotCount < maxDiveShots && en.y > 130 && en.y < H - 180 && Math.random() < 2.2 * dt) {
+          if (en.shotCount < maxDiveShots && en.y > 110 && en.y < H - 140 && Math.random() < 2.2 * dt) {
             en.shotCount++;
             const aimAngle = p ? Math.atan2(p.y - en.y, p.x - en.x) : Math.PI / 2;
-            const bSpd = 240 + Math.min(120, state.stage * 12);
+            const bSpd = 235 + Math.min(115, state.stage * 12);
             state.enemyBullets.push({
               x: en.x,
               y: en.y + 12,
-              vx: Math.cos(aimAngle) * bSpd * 0.55,
-              vy: Math.max(180, Math.sin(aimAngle) * bSpd)
+              vx: Math.cos(aimAngle) * bSpd,
+              vy: Math.sin(aimAngle) * bSpd
             });
           }
 
@@ -1125,7 +1165,7 @@
           }
         }
       } else if (en.state === 'tractor') {
-        const hoverY = H - 195;
+        const hoverY = Math.max(170, H - 220);
         if (en.tractorTimer === 0 && en.y < hoverY) {
           en.y += 195 * dt;
           en.x += (en.targetX - en.x) * 3.2 * dt;
@@ -1136,8 +1176,9 @@
           }
         } else if (en.tractorTimer > 0) {
           en.tractorTimer -= dt;
-          // Check if player touches the tractor beam cone
-          if (p && Math.abs(p.x - en.x) < 30 && p.y > en.y) {
+          const beamBottom = H - 24;
+          // Check if player touches the tractor beam cone below the Boss
+          if (p && Math.abs(p.x - en.x) < 30 && p.y > en.y + 8 && p.y < beamBottom) {
             damagePlayer();
             en.tractorTimer = 0;
           }
@@ -1191,7 +1232,7 @@
       const eb = state.enemyBullets[i];
       eb.x += eb.vx * dt;
       eb.y += eb.vy * dt;
-      if (eb.y > H + 20 || eb.x < -20 || eb.x > W + 20) {
+      if (eb.y > H + 20 || eb.y < -20 || eb.x < -20 || eb.x > W + 20) {
         state.enemyBullets.splice(i, 1);
         continue;
       }
@@ -1293,7 +1334,7 @@
     // 3. Boss Tractor Beams
     state.enemies.forEach((en) => {
       if (en.state === 'tractor' && en.tractorTimer > 0) {
-        const beamH = (state.player ? state.player.y + 12 : H - 40) - (en.y + 12);
+        const beamH = Math.max(80, H - 28 - (en.y + 12));
         const grad = ctx.createLinearGradient(en.x, en.y + 12, en.x, en.y + 12 + beamH);
         grad.addColorStop(0, 'rgba(36, 210, 238, 0.55)');
         grad.addColorStop(0.5, 'rgba(56, 189, 248, 0.28)');
@@ -1350,9 +1391,10 @@
       if (!blinkSkip) {
         const drawFighterAt = (fx, fy) => {
           ctx.drawImage(SPRITES.player, fx - SPRITES.player.width / 2, fy - SPRITES.player.height / 2);
-          // Flickering thruster jet
-          const jetH = 5 + (Math.floor(nowSec * 6) % 5);
-          ctx.fillStyle = '#fbbd23';
+          // Dynamic afterburner thruster jet (boosts longer when flying forward!)
+          const boostExtra = p.thrust > 0 ? 6 : p.thrust < 0 ? -2 : 0;
+          const jetH = Math.max(3, 5 + boostExtra + (Math.floor(nowSec * 6) % 5));
+          ctx.fillStyle = p.thrust > 0 ? '#24d2ee' : '#fbbd23';
           ctx.fillRect(fx - 7, fy + 13, 3, jetH);
           ctx.fillRect(fx + 4, fy + 13, 3, jetH);
         };
