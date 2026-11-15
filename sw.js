@@ -1,9 +1,9 @@
-const CACHE_NAME = 'strikers-1945-remastered-v3.3.0';
+const CACHE_NAME = 'strikers-1945-remastered-v3.4.0';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
-  './style.css',
-  './game.js',
+  './style.css?v=3.4.0',
+  './game.js?v=3.4.0',
   './manifest.webmanifest',
   './favicon.png',
   './icons/icon-192.png',
@@ -53,12 +53,11 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first for HTML/JS/CSS so updates apply immediately; Cache-first with background refresh for immutable HD WebP assets
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  if (url.pathname.includes('/assets/')) {
+  if (url.pathname.includes('/assets/') || url.pathname.includes('/icons/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         const fetched = fetch(event.request)
@@ -77,7 +76,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-cache' })
       .then((networkResponse) => {
         if (
           networkResponse &&
@@ -89,6 +88,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(event.request, { ignoreSearch: true }))
   );
 });

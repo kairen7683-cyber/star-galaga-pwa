@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>STRIKERS 1945 : SKY ACE HD — 리마스터 종스크롤 슈팅 PWA</title>
-  <meta name="description" content="프리렌더링 3D HD 리마스터 그래픽! 5단계 기체 진화와 3페이즈 거대 보스전을 지원하는 갤럭시 60FPS 최적화 1945 슈팅 PWA" />
-  <meta name="theme-color" content="#060d18" />
+  <title>STRIKERS 1945 : SKY ACE</title>
+  <meta name="description" content="프리렌더링 3D 리마스터 종스크롤 아케이드 슈팅 게임" />
+  <meta name="theme-color" content="#050b14" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,9 +14,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=3.4.0" />
 
-  <!-- Capture beforeinstallprompt immediately before heavy asset loading -->
   <script>
     window.__pwaDeferredPrompt = null;
     window.addEventListener('beforeinstallprompt', function (e) {
@@ -27,45 +26,30 @@
   </script>
 </head>
 <body>
-  <div class="app-shell" id="app-shell">
-    <!-- Top Tactical HUD -->
-    <header class="hud-header" aria-label="전투 상태 표시줄">
-      <div class="hud-stat">
-        <span class="hud-label hud-label--crimson">1P SCORE</span>
-        <span class="hud-value" id="score-display">0</span>
-      </div>
-
-      <div class="hud-stat hud-stat--center">
-        <span class="hud-label hud-label--gold">BEST RECORD</span>
-        <span class="hud-value" id="high-score-display">0</span>
-      </div>
-
-      <div class="hud-stat hud-stat--right">
-        <div class="hud-toolbar">
-          <button type="button" class="icon-btn icon-btn--install" id="btn-hud-install" title="스마트폰 앱(PWA) 다운로드">
-            📲 앱설치
-          </button>
-          <button type="button" class="icon-btn" id="btn-autofire" aria-pressed="true" title="자동 사격 전환">
-            AUTO
-          </button>
-          <button type="button" class="icon-btn" id="btn-sound" aria-pressed="true" title="사운드 켜기/끄기">
-            🔊
-          </button>
-          <button type="button" class="icon-btn" id="btn-pause" aria-label="일시정지" title="일시정지">
-            ⏸
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main Combat Viewport -->
+  <div class="app-shell is-standby" id="app-shell">
+    <!-- Edge-to-Edge Battlefield Canvas -->
     <main class="stage-viewport" id="stage-viewport">
-      <canvas id="game-canvas" aria-label="스트라이커즈 1945 HD 리마스터 공중전 화면"></canvas>
+      <canvas id="game-canvas" aria-label="스트라이커즈 1945 공중전 화면"></canvas>
 
-      <!-- Boss Multi-Phase HP Bar -->
+      <!-- Minimal Floating Top Combat HUD -->
+      <header class="hud-header" aria-label="전투 상태">
+        <div class="hud-score-group">
+          <span class="hud-stage-tag" id="stage-chip">ROUND 1</span>
+          <span class="hud-score-val" id="score-display">0</span>
+        </div>
+
+        <button type="button" class="hud-pause-btn" id="btn-pause" aria-label="일시정지" title="일시정지 및 설정">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="2" y="2" width="3.5" height="10" rx="1" fill="currentColor" />
+            <rect x="8.5" y="2" width="3.5" height="10" rx="1" fill="currentColor" />
+          </svg>
+        </button>
+      </header>
+
+      <!-- Boss Multi-Phase HP Gauge -->
       <div class="boss-hud" id="boss-hud" aria-live="polite">
         <div class="boss-hud__top">
-          <span id="boss-name-label">WARNING // XB-0 IRON VALKYRIE</span>
+          <span id="boss-name-label">XB-0 IRON VALKYRIE</span>
           <span id="boss-hp-pct">100%</span>
         </div>
         <div class="boss-hud__track">
@@ -75,165 +59,181 @@
         </div>
       </div>
 
-      <!-- Wave / Warning Banner -->
+      <!-- Wave / Boss Alert Banner -->
       <div class="wave-banner" id="wave-banner" role="status" aria-live="polite">
-        <div class="wave-banner__title" id="wave-banner-title">MISSION 1</div>
-        <div class="wave-banner__sub" id="wave-banner-sub">남태평양 산호초 요새 돌파!</div>
+        <div class="wave-banner__title" id="wave-banner-title">ROUND 1</div>
+        <div class="wave-banner__sub" id="wave-banner-sub">작전 해역 진입</div>
       </div>
 
-      <!-- Hangar / Start Screen -->
-      <section class="overlay-screen" id="start-screen" aria-labelledby="main-title">
-        <div class="modal-panel">
-          <div class="brand-header">
-            <img src="./icons/icon-192.png" alt="1945 스카이 에이스 엠블럼" class="brand-emblem" width="58" height="58" />
-            <div class="brand-titles">
-              <div class="remaster-chip">HD REMASTERED · 60FPS</div>
-              <h1 class="game-title" id="main-title">STRIKERS <span>1945</span></h1>
-              <p class="game-subtitle">프리렌더링 3D 기체 진화 · 3페이즈 거대 보스전</p>
+      <!-- Minimal Floating Bottom Combat Deck -->
+      <footer class="control-deck" aria-label="무장 상태 및 전술 스킬">
+        <div class="status-strip">
+          <div class="lives-rack" id="lives-rack" title="남은 잔기"></div>
+          <div class="power-meter" title="무장 진화 단계">
+            <span class="power-badge" id="power-level-text">LV.1</span>
+            <div class="power-pips" id="power-pips">
+              <span class="power-pip is-filled"></span>
+              <span class="power-pip"></span>
+              <span class="power-pip"></span>
+              <span class="power-pip"></span>
+              <span class="power-pip"></span>
             </div>
           </div>
+        </div>
 
-          <div class="hangar-label">✈️ 출격 기체 선택 (주무장 & 부무장 특성)</div>
-          <div class="fighter-grid" role="radiogroup" aria-label="출격 기체 선택">
-            <button type="button" class="fighter-card is-selected" id="select-lightning" data-fighter="lightning" role="radio" aria-checked="true">
-              <canvas class="fighter-preview" id="preview-lightning" width="76" height="76"></canvas>
-              <span class="fighter-name">P-38 라이트닝</span>
-              <span class="fighter-spec">확산 발칸 + 유도미사일</span>
-            </button>
+        <div class="tactical-actions">
+          <button type="button" class="tactical-btn tactical-btn--wing" id="btn-formation" title="호위 편대기 지원 출격 (쿨타임 12초)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3L14.8 10.5L22 14L14.8 15.8L12 21L9.2 15.8L2 14L9.2 10.5L12 3Z" fill="currentColor" />
+            </svg>
+            <span id="formation-label">편대비행</span>
+          </button>
 
-            <button type="button" class="fighter-card" id="select-skyray" data-fighter="skyray" role="radio" aria-checked="false">
-              <canvas class="fighter-preview" id="preview-skyray" width="76" height="76"></canvas>
-              <span class="fighter-name">XF-5F 스카이레이</span>
-              <span class="fighter-spec">고속 발칸 + 관통레이저</span>
-            </button>
+          <button type="button" class="tactical-btn tactical-btn--bomb" id="btn-hyper-bomb" title="B-29 편대 폭격 (탄막 제거 + 광역 폭격)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="11" cy="13" r="7" fill="currentColor" />
+              <path d="M16 8L19.5 4.5M18 3L21 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            </svg>
+            <span>폭탄</span>
+            <span class="tactical-count" id="bomb-count">3</span>
+          </button>
+        </div>
+      </footer>
 
-            <button type="button" class="fighter-card" id="select-shinden" data-fighter="shinden" role="radio" aria-checked="false">
-              <canvas class="fighter-preview" id="preview-shinden" width="76" height="76"></canvas>
-              <span class="fighter-name">J7W 신덴</span>
-              <span class="fighter-spec">중기관포 + 네이팜로켓</span>
-            </button>
+      <!-- Sleek Standby / Hangar Title Screen -->
+      <section class="standby-screen" id="start-screen" aria-labelledby="main-title">
+        <div class="standby-top">
+          <div class="standby-record">
+            <span class="standby-record__label">BEST SCORE</span>
+            <span class="standby-record__val" id="high-score-display">0</span>
           </div>
 
-          <div class="controls-guide">
-            <div>📱 <strong>전방향 이동:</strong> 화면 어디든 <strong>앞뒤·좌우 360°</strong> 터치 슬라이드</div>
-            <div>✈️ <strong>편대비행 & 폭탄:</strong> 하단 <strong>[✈️ 편대비행]</strong>(호위기 호출) · <strong>[💣 폭탄]</strong>(보스전도 즉시 발동, 최대 5발)</div>
-            <div>⚡ <strong>5단계 진화:</strong> <strong>[P]</strong> 3단계부터 상시 윙맨 합류 · 보스 날개 포탑 우선 파괴!</div>
+          <div class="standby-brand">
+            <p class="standby-eyebrow">STRIKERS TACTICAL AIR COMBAT</p>
+            <h1 class="standby-title" id="main-title">1945 <span>SKY ACE</span></h1>
+          </div>
+        </div>
+
+        <!-- Center open window lets the live 3D Showcase Fighter & Ocean shine through -->
+        <div class="standby-dock">
+          <div class="dock-header">
+            <span class="dock-header__title">출격 기체 선택</span>
+            <span class="dock-header__spec" id="selected-fighter-desc">확산 발칸 · 유도 미사일</span>
+          </div>
+
+          <div class="fighter-grid" role="radiogroup" aria-label="출격 기체 선택">
+            <button type="button" class="fighter-card is-selected" id="select-lightning" data-fighter="lightning" data-spec="확산 발칸 · 유도 미사일" role="radio" aria-checked="true">
+              <canvas class="fighter-preview" id="preview-lightning" width="76" height="76"></canvas>
+              <span class="fighter-code">P-38</span>
+              <span class="fighter-name">라이트닝</span>
+            </button>
+
+            <button type="button" class="fighter-card" id="select-skyray" data-fighter="skyray" data-spec="고속 발칸 · 관통 레이저" role="radio" aria-checked="false">
+              <canvas class="fighter-preview" id="preview-skyray" width="76" height="76"></canvas>
+              <span class="fighter-code">XF-5F</span>
+              <span class="fighter-name">스카이레이</span>
+            </button>
+
+            <button type="button" class="fighter-card" id="select-shinden" data-fighter="shinden" data-spec="중기관포 · 네이팜 로켓" role="radio" aria-checked="false">
+              <canvas class="fighter-preview" id="preview-shinden" width="76" height="76"></canvas>
+              <span class="fighter-code">J7W</span>
+              <span class="fighter-name">신덴</span>
+            </button>
           </div>
 
           <button type="button" class="primary-cta" id="btn-start-game">
-            🔥 스크램블 출격 (LOADING HD...)
+            출격 개시
           </button>
 
-          <button type="button" class="install-cta" id="btn-install-pwa">
-            📲 스마트폰 앱(PWA) 다운로드 · 홈 화면 설치
+          <button type="button" class="quiet-install-btn" id="btn-install-pwa">
+            홈 화면에 앱 설치
           </button>
         </div>
       </section>
 
-      <!-- Smart PWA Download / Install Guide Modal (Galaxy Chrome / Samsung Internet / In-App / iOS) -->
+      <!-- Install Guide Modal -->
       <section class="overlay-screen" id="install-modal" hidden aria-labelledby="install-modal-title">
         <div class="modal-panel">
-          <h2 class="game-title" id="install-modal-title" style="font-size: 1.25rem;">📲 PWA <span>앱 다운로드</span></h2>
-          <p class="game-subtitle" id="install-modal-desc" style="margin-top: 6px;">
-            홈 화면에 설치하면 주소창 없는 전체화면 네이티브 앱으로 오프라인에서도 즉시 실행됩니다.
+          <h2 class="modal-title" id="install-modal-title">앱 다운로드 및 설치</h2>
+          <p class="modal-subtitle" id="install-modal-desc">
+            전체화면 전용 앱으로 설치해 오프라인에서도 즉시 실행할 수 있습니다.
           </p>
 
           <div class="install-steps" id="install-steps-content"></div>
 
-          <a class="primary-cta install-chrome-link" id="btn-download-apk" href="https://github.com/kairen7683-cyber/star-galaga-pwa/releases/latest/download/strikers-1945-ace.apk" target="_blank" rel="noopener">
-            📦 설치 메뉴 없을 때: 안드로이드 앱(.APK) 직접 다운
+          <a class="primary-cta" id="btn-download-apk" href="https://github.com/kairen7683-cyber/star-galaga-pwa/releases/latest/download/strikers-1945-ace.apk" target="_blank" rel="noopener">
+            안드로이드 전용 앱(.APK) 다운로드
           </a>
 
-          <a class="secondary-cta" id="btn-open-chrome" href="intent://kairen7683-cyber.github.io/star-galaga-pwa/#Intent;scheme=https;package=com.android.chrome;end" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;" hidden>
-            🌐 Chrome 브라우저로 열기
+          <a class="secondary-cta" id="btn-open-chrome" href="intent://kairen7683-cyber.github.io/star-galaga-pwa/#Intent;scheme=https;package=com.android.chrome;end" hidden>
+            Chrome 브라우저로 열기
           </a>
 
-          <button type="button" class="secondary-cta" id="btn-close-install-modal">
+          <button type="button" class="ghost-cta" id="btn-close-install-modal">
             닫기
           </button>
         </div>
       </section>
 
-      <!-- Pause Screen -->
+      <!-- Clean Pause & Settings Modal -->
       <section class="overlay-screen" id="pause-screen" hidden aria-labelledby="pause-title">
         <div class="modal-panel">
-          <h2 class="game-title" id="pause-title">MISSION <span>PAUSED</span></h2>
-          <p class="game-subtitle" style="margin-top: 8px;">작전이 일시 중지되었습니다.</p>
-          <div style="margin-top: 18px;">
-            <button type="button" class="primary-cta" id="btn-resume-game">
-              ▶ 전투 복귀
+          <h2 class="modal-title" id="pause-title">작전 일시정지</h2>
+
+          <div class="pause-toggles">
+            <button type="button" class="setting-pill" id="btn-sound" aria-pressed="true">
+              사운드 켜짐
             </button>
-            <button type="button" class="install-cta" id="btn-pause-install">
-              📲 스마트폰 앱(PWA)으로 다운로드
-            </button>
-            <button type="button" class="secondary-cta" id="btn-restart-from-pause">
-              ✈️ 격납고로 돌아가기 (기체 재선택)
+            <button type="button" class="setting-pill" id="btn-autofire" aria-pressed="true">
+              자동사격 켜짐
             </button>
           </div>
+
+          <button type="button" class="primary-cta" id="btn-resume-game">
+            전투 복귀
+          </button>
+          <button type="button" class="secondary-cta" id="btn-restart-from-pause">
+            대기 화면으로 이동
+          </button>
+          <button type="button" class="quiet-install-btn" id="btn-pause-install">
+            홈 화면에 앱 설치
+          </button>
         </div>
       </section>
 
-      <!-- Game Over Screen -->
+      <!-- Clean Game Over Modal -->
       <section class="overlay-screen" id="gameover-screen" hidden aria-labelledby="gameover-title">
         <div class="modal-panel">
-          <h2 class="game-title" id="gameover-title">MISSION <span>OVER</span></h2>
-          <p class="game-subtitle" id="gameover-record-msg" style="margin-top: 6px;">치열한 공중전이었습니다, 에이스!</p>
+          <p class="modal-eyebrow">MISSION REPORT</p>
+          <h2 class="modal-title" id="gameover-title">작전 종료</h2>
+          <p class="modal-subtitle" id="gameover-record-msg">수고하셨습니다, 파일럿.</p>
 
           <div class="score-summary">
             <div class="summary-item">
-              <span class="summary-item__label">최종 스코어</span>
+              <span class="summary-item__label">SCORE</span>
               <span class="summary-item__val" id="final-score">0</span>
             </div>
             <div class="summary-item">
-              <span class="summary-item__label">도달 미션</span>
+              <span class="summary-item__label">ROUND</span>
               <span class="summary-item__val" id="final-stage">1</span>
             </div>
             <div class="summary-item">
-              <span class="summary-item__label">골드 메달</span>
+              <span class="summary-item__label">MEDALS</span>
               <span class="summary-item__val" id="final-medals">0</span>
             </div>
           </div>
 
           <button type="button" class="primary-cta" id="btn-retry-game">
-            🔥 즉시 재출격
+            즉시 재출격
           </button>
           <button type="button" class="secondary-cta" id="btn-back-hangar">
-            ✈️ 다른 기체 선택하기
+            기체 변경
           </button>
         </div>
       </section>
     </main>
-
-    <!-- Bottom Tactical Control Deck -->
-    <footer class="control-deck" aria-label="무장 상태 및 폭격 지원">
-      <div class="status-strip">
-        <div class="status-row">
-          <div class="lives-rack" id="lives-rack" title="남은 잔기"></div>
-          <span class="power-badge" id="stage-chip">MSN 1</span>
-        </div>
-        <div class="power-meter" title="화력 및 기체 진화 단계 (최대 5단계)">
-          <span class="power-badge" id="power-level-text">POW LV.1</span>
-          <div class="power-pips" id="power-pips">
-            <span class="power-pip is-filled"></span>
-            <span class="power-pip"></span>
-            <span class="power-pip"></span>
-            <span class="power-pip"></span>
-            <span class="power-pip"></span>
-          </div>
-        </div>
-      </div>
-
-      <div class="tactical-actions">
-        <button type="button" class="formation-btn" id="btn-formation" title="호위 편대기 2기 긴급 출격 (쿨타임 12초 무료 지원)">
-          ✈️ <span id="formation-label">편대비행</span>
-        </button>
-        <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="폭탄 투하 = B-29 편대 폭격 (적 탄환 전체 제거 + 보스/적군 광역 폭격, 최대 5발)">
-          💣 폭탄 <span id="bomb-count">x3</span>
-        </button>
-      </div>
-    </footer>
   </div>
 
-  <script src="./game.js"></script>
+  <script src="./game.js?v=3.4.0"></script>
 </body>
 </html>

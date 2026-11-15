@@ -459,16 +459,18 @@
 
     HD.ready = true;
     renderHangarPreviews();
-    btnStartGame.textContent = '🔥 스크램블 출격 (START MISSION)';
+    btnStartGame.textContent = '출격 개시';
   }
 
   /* =========================================================================
    * 4. DOM ELEMENTS, PWA INSTALL SYSTEM & GAME STATE
    * ========================================================================= */
   const sound = new SoundEngine();
+  const appShellEl = document.getElementById('app-shell');
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d', { alpha: false });
   const viewportEl = document.getElementById('stage-viewport');
+  const selectedFighterDescEl = document.getElementById('selected-fighter-desc');
 
   const scoreEl = document.getElementById('score-display');
   const highScoreEl = document.getElementById('high-score-display');
@@ -590,12 +592,11 @@
 
   function syncInstallButtonsVisibility() {
     const hide = isStandaloneApp();
-    btnInstallPwa.hidden = hide;
-    btnHudInstall.hidden = hide;
-    btnPauseInstall.hidden = hide;
-    if (window.__pwaDeferredPrompt && !hide) {
-      btnInstallPwa.textContent = '📲 스마트폰 앱(PWA) 바로 다운로드 · 설치';
-      btnHudInstall.textContent = '📲 앱다운';
+    if (btnInstallPwa) btnInstallPwa.hidden = hide;
+    if (btnHudInstall) btnHudInstall.hidden = hide;
+    if (btnPauseInstall) btnPauseInstall.hidden = hide;
+    if (window.__pwaDeferredPrompt && !hide && btnInstallPwa) {
+      btnInstallPwa.textContent = '홈 화면에 앱 바로 설치';
     }
   }
   syncInstallButtonsVisibility();
@@ -627,26 +628,24 @@
 
     if (isIOS) {
       installStepsEl.innerHTML =
-        '1️⃣ Safari 브라우저 하단 중앙의 <strong>[공유 ↑]</strong> 버튼을 터치하세요.<br/>' +
-        '2️⃣ 메뉴에서 <strong>[홈 화면에 추가]</strong>를 누르면 바탕화면에 <strong>1945에이스</strong> 앱이 설치됩니다!';
+        '1. Safari 하단의 <strong>[공유]</strong> 버튼을 누르세요.<br/>' +
+        '2. 메뉴에서 <strong>[홈 화면에 추가]</strong>를 선택하면 설치됩니다.';
     } else if (isAndroid) {
       installStepsEl.innerHTML =
-        '💡 <strong>크롬·삼성인터넷에 [홈 화면에 추가 / 앱 설치] 메뉴가 안 보일 때:</strong><br/>' +
-        '1️⃣ 휴대폰 <strong>[설정] → [홈 화면] → [홈 화면 레이아웃 잠금]</strong>을 <strong>꺼주세요(OFF)</strong>! (잠겨 있으면 모든 브라우저에서 설치 메뉴가 숨겨집니다)<br/>' +
-        '2️⃣ 만약 그래도 안 보이면 <strong>[설정] → [애플리케이션] → [기본 앱 선택] → [홈 앱]</strong>에서 <strong>[One UI 홈]</strong>을 한 번 선택해 주세요.<br/>' +
-        '3️⃣ <strong>설정 바꾸기 번거로우시다면</strong> 아래 초록색 <strong>[📦 안드로이드 앱(.APK) 직접 다운]</strong> 버튼으로 바로 설치하실 수 있습니다!';
+        '<strong>설치 메뉴가 보이지 않을 때 해결 방법</strong><br/>' +
+        '1. 휴대폰 <strong>[설정] → [홈 화면] → [홈 화면 레이아웃 잠금]</strong>을 꺼주세요.<br/>' +
+        '2. 설정 변경 없이 바로 설치하려면 아래 <strong>[안드로이드 전용 앱(.APK) 다운로드]</strong>를 눌러 설치하세요.';
     } else {
       installStepsEl.innerHTML =
-        '💻 <strong>PC / 모바일 앱 설치 방법:</strong><br/>' +
-        '브라우저 주소창 우측의 <strong>[📥 앱 설치]</strong> 아이콘을 클릭하거나, 메뉴 <strong>[⋮] → [앱 설치 / 홈 화면에 추가]</strong>를 선택하세요!';
+        '브라우저 주소창 우측의 <strong>[앱 설치]</strong> 아이콘 또는 메뉴의 <strong>[홈 화면에 추가]</strong>를 선택하세요.';
     }
 
     installModalEl.hidden = false;
   }
 
-  btnInstallPwa.addEventListener('click', triggerPwaInstall);
-  btnHudInstall.addEventListener('click', triggerPwaInstall);
-  btnPauseInstall.addEventListener('click', triggerPwaInstall);
+  if (btnInstallPwa) btnInstallPwa.addEventListener('click', triggerPwaInstall);
+  if (btnHudInstall) btnHudInstall.addEventListener('click', triggerPwaInstall);
+  if (btnPauseInstall) btnPauseInstall.addEventListener('click', triggerPwaInstall);
   btnCloseInstallModal.addEventListener('click', () => {
     installModalEl.hidden = true;
   });
@@ -668,6 +667,7 @@
     });
   }
 
+  let showcaseBank = 0;
   document.querySelectorAll('.fighter-card').forEach((card) => {
     card.addEventListener('click', () => {
       sound.unlock();
@@ -679,6 +679,10 @@
       card.classList.add('is-selected');
       card.setAttribute('aria-checked', 'true');
       state.fighterType = card.dataset.fighter;
+      showcaseBank = -0.85;
+      if (selectedFighterDescEl && card.dataset.spec) {
+        selectedFighterDescEl.textContent = card.dataset.spec;
+      }
     });
   });
 
@@ -835,9 +839,12 @@
   }
 
   function updateHud() {
+    if (appShellEl) {
+      appShellEl.classList.toggle('is-standby', state.mode === 'title');
+    }
     scoreEl.textContent = state.score.toLocaleString();
     highScoreEl.textContent = state.highScore.toLocaleString();
-    stageChipEl.textContent = `MSN ${state.stage}`;
+    stageChipEl.textContent = `ROUND ${state.stage}`;
 
     livesRackEl.innerHTML = '';
     const shown = Math.max(0, state.lives - 1);
@@ -848,7 +855,7 @@
     }
 
     const pw = state.player ? state.player.power : 1;
-    powerTextEl.textContent = pw >= 5 ? 'POW MAX' : `POW LV.${pw}`;
+    powerTextEl.textContent = pw >= 5 ? 'MAX' : `LV.${pw}`;
     powerTextEl.classList.toggle('is-max', pw >= 5);
 
     const pips = powerPipsEl.querySelectorAll('.power-pip');
@@ -857,18 +864,18 @@
       pip.classList.toggle('is-max', pw >= 5);
     });
 
-    bombCountEl.textContent = state.bombs >= 5 ? 'x5(MAX)' : `x${state.bombs}`;
+    bombCountEl.textContent = state.bombs >= 5 ? 'MAX' : String(state.bombs);
     btnHyperBomb.style.opacity = state.bombs > 0 && state.mode === 'playing' ? '1' : '0.42';
 
     if (btnFormation && formationLabelEl) {
       if (state.formationTime > 0) {
         btnFormation.classList.add('is-active');
         btnFormation.disabled = false;
-        formationLabelEl.textContent = `편대중 ${Math.ceil(state.formationTime)}s`;
+        formationLabelEl.textContent = `편대 ${Math.ceil(state.formationTime)}s`;
       } else if (state.formationCd > 0) {
         btnFormation.classList.remove('is-active');
         btnFormation.disabled = true;
-        formationLabelEl.textContent = `대기 ${Math.ceil(state.formationCd)}s`;
+        formationLabelEl.textContent = `${Math.ceil(state.formationCd)}s`;
       } else {
         btnFormation.classList.remove('is-active');
         btnFormation.disabled = state.mode !== 'playing';
@@ -1637,12 +1644,13 @@
   bindInstantButton(btnAutoFire, () => {
     state.autoFire = !state.autoFire;
     btnAutoFire.setAttribute('aria-pressed', String(state.autoFire));
+    btnAutoFire.textContent = state.autoFire ? '자동사격 켜짐' : '자동사격 꺼짐';
   });
 
   bindInstantButton(btnSound, () => {
     sound.enabled = !sound.enabled;
     btnSound.setAttribute('aria-pressed', String(sound.enabled));
-    btnSound.textContent = sound.enabled ? '🔊' : '🔇';
+    btnSound.textContent = sound.enabled ? '사운드 켜짐' : '사운드 꺼짐';
   });
 
   bindInstantButton(btnPause, () => {
@@ -1697,7 +1705,19 @@
 
   function openHangar() {
     state.mode = 'title';
+    state.boss = null;
+    state.bossActive = false;
+    state.enemies = [];
+    state.bullets = [];
+    state.enemyBullets = [];
+    state.items = [];
+    state.explosions = [];
+    state.shockwaves = [];
+    state.sparks = [];
+    state.popups = [];
+    state.airStrikeBombers = [];
     bossHudEl.classList.remove('is-active');
+    waveBannerEl.classList.remove('is-visible');
     pauseScreenEl.hidden = true;
     gameoverScreenEl.hidden = true;
     startScreenEl.hidden = false;
@@ -2438,10 +2458,63 @@
       }
     }
 
-    // 8. HD 3D Pre-Rendered Player Fighter + Evolved Hull + Drones + Mach Afterburners!
+    // 8. HD 3D Pre-Rendered Player Fighter + Standby Live Formation Showcase!
     const p = state.player;
     const nowMs = performance.now();
-    if (HD.ready && p && state.mode !== 'gameover') {
+
+    if (HD.ready && state.mode === 'title') {
+      showcaseBank += (0 - showcaseBank) * 0.08;
+      const sx = W * 0.5 + Math.sin(nowMs * 0.0014) * 20;
+      const sy = H * 0.37 + Math.cos(nowMs * 0.0019) * 8;
+      const bank = showcaseBank + Math.cos(nowMs * 0.0014) * 0.16;
+      const fAsset = HD.fighters[state.fighterType][3];
+      const fShadow = HD.fighterShadows[state.fighterType][3];
+      const sc = 1.26;
+
+      // Altitude ocean shadow
+      ctx.drawImage(
+        fShadow,
+        sx - (fAsset.w * sc * 0.84) / 2 + 24,
+        sy - (fAsset.h * sc * 0.84) / 2 + 32,
+        fAsset.w * sc * 0.84,
+        fAsset.h * sc * 0.84
+      );
+
+      // Escort wingmen cruising in V-formation
+      const bob = Math.sin(nowMs * 0.004) * 4;
+      [
+        [sx - 66, sy + 20 + bob],
+        [sx + 66, sy + 20 - bob]
+      ].forEach(([dx, dy]) => {
+        ctx.drawImage(HD.drone.img, dx - HD.drone.w / 2, dy - HD.drone.h / 2, HD.drone.w, HD.drone.h);
+      });
+
+      // Showcase jet/prop afterburners
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const flameLen = 22 + (Math.floor(nowMs / 38) % 8);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.88)';
+      if (state.fighterType === 'lightning') {
+        ctx.fillRect(sx - 18, sy + fAsset.h * sc * 0.28, 6, flameLen);
+        ctx.fillRect(sx + 12, sy + fAsset.h * sc * 0.28, 6, flameLen);
+      } else {
+        ctx.fillRect(sx - 7, sy + fAsset.h * sc * 0.34, 14, flameLen);
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale((1 - Math.abs(bank) * 0.14) * sc, sc);
+      ctx.rotate(bank * 0.12);
+      ctx.drawImage(fAsset.img, -fAsset.w / 2, -fAsset.h / 2, fAsset.w, fAsset.h);
+      if (state.fighterType === 'lightning') {
+        ctx.drawImage(HD.ov.propBlur, -26, -fAsset.h * 0.36);
+        ctx.drawImage(HD.ov.propBlur, -2, -fAsset.h * 0.36);
+      }
+      ctx.restore();
+    }
+
+    if (HD.ready && p && state.mode !== 'gameover' && state.mode !== 'title') {
       const blinkHide = p.invuln > 0 && Math.floor(nowMs / 70) % 2 === 0;
       if (!blinkHide) {
         const tier = p.power >= 4 ? 3 : p.power >= 2 ? 2 : 1;
@@ -2616,7 +2689,7 @@
   updateHud();
   loadAllHdAssets().catch((err) => {
     console.error('HD asset load error:', err);
-    btnStartGame.textContent = '🔥 스크램블 출격 (START MISSION)';
+    btnStartGame.textContent = '출격 개시';
   });
   requestAnimationFrame(loop);
 })();
