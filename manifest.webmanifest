@@ -1,27 +1,58 @@
 {
-  "name": "STRIKERS 1945 : 스카이 에이스",
+  "id": "./",
+  "name": "STRIKERS 1945 : 스카이 에이스 HD 리마스터",
   "short_name": "1945에이스",
-  "description": "아이템 파밍과 5단계 기체·무기 진화, 거대 보스전을 지원하는 갤럭시 최적화 고품질 1945 종스크롤 슈팅 PWA",
-  "start_url": "./index.html",
+  "description": "스타크래프트 리마스터급 프리렌더링 3D HD 그래픽과 5단계 기체 진화, 3페이즈 거대 보스전을 지원하는 정통 1945 종스크롤 슈팅 PWA",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
-  "background_color": "#07111e",
-  "theme_color": "#07111e",
+  "background_color": "#060d18",
+  "theme_color": "#060d18",
   "lang": "ko",
+  "prefer_related_applications": false,
   "categories": ["games", "action", "entertainment"],
   "icons": [
     {
       "src": "./icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "./icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./assets/screenshot-play.webp",
+      "sizes": "540x960",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "STRIKERS 1945 HD 리마스터 거대 보스전 플레이 화면"
+    },
+    {
+      "src": "./assets/screenshot-play.webp",
+      "sizes": "540x960",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "STRIKERS 1945 HD 리마스터 공중전"
     }
   ]
 }

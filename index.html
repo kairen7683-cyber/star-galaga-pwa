@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>STRIKERS 1945 : SKY ACE — 고품질 종스크롤 슈팅 PWA</title>
-  <meta name="description" content="갤럭시 A시리즈 60FPS 완벽 최적화! 아이템 파밍을 통한 기체 외형·총알·유도미사일·레이저 5단계 진화와 거대 보스전을 지원하는 1945 스타일 슈팅 게임" />
-  <meta name="theme-color" content="#07111e" />
+  <title>STRIKERS 1945 : SKY ACE HD — 리마스터 종스크롤 슈팅 PWA</title>
+  <meta name="description" content="프리렌더링 3D HD 리마스터 그래픽! 5단계 기체 진화와 3페이즈 거대 보스전을 지원하는 갤럭시 60FPS 최적화 1945 슈팅 PWA" />
+  <meta name="theme-color" content="#060d18" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -15,6 +15,16 @@
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="./style.css" />
+
+  <!-- Capture beforeinstallprompt immediately before heavy asset loading -->
+  <script>
+    window.__pwaDeferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.__pwaDeferredPrompt = e;
+      window.dispatchEvent(new CustomEvent('pwa-prompt-ready'));
+    });
+  </script>
 </head>
 <body>
   <div class="app-shell" id="app-shell">
@@ -32,6 +42,9 @@
 
       <div class="hud-stat hud-stat--right">
         <div class="hud-toolbar">
+          <button type="button" class="icon-btn icon-btn--install" id="btn-hud-install" title="스마트폰 앱(PWA) 다운로드">
+            📲 앱설치
+          </button>
           <button type="button" class="icon-btn" id="btn-autofire" aria-pressed="true" title="자동 사격 전환">
             AUTO
           </button>
@@ -47,23 +60,25 @@
 
     <!-- Main Combat Viewport -->
     <main class="stage-viewport" id="stage-viewport">
-      <canvas id="game-canvas" aria-label="스트라이커즈 1945 공중전 화면"></canvas>
+      <canvas id="game-canvas" aria-label="스트라이커즈 1945 HD 리마스터 공중전 화면"></canvas>
 
-      <!-- Boss HP Bar -->
+      <!-- Boss Multi-Phase HP Bar -->
       <div class="boss-hud" id="boss-hud" aria-live="polite">
         <div class="boss-hud__top">
-          <span id="boss-name-label">WARNING // IRON VALKYRIE</span>
+          <span id="boss-name-label">WARNING // XB-0 IRON VALKYRIE</span>
           <span id="boss-hp-pct">100%</span>
         </div>
         <div class="boss-hud__track">
           <div class="boss-hud__fill" id="boss-hp-fill"></div>
+          <span class="boss-hud__phase-tick" style="left: 30%;"></span>
+          <span class="boss-hud__phase-tick" style="left: 65%;"></span>
         </div>
       </div>
 
       <!-- Wave / Warning Banner -->
       <div class="wave-banner" id="wave-banner" role="status" aria-live="polite">
         <div class="wave-banner__title" id="wave-banner-title">MISSION 1</div>
-        <div class="wave-banner__sub" id="wave-banner-sub">남태평양 해상 전선 돌파!</div>
+        <div class="wave-banner__sub" id="wave-banner-sub">남태평양 산호초 요새 돌파!</div>
       </div>
 
       <!-- Hangar / Start Screen -->
@@ -72,49 +87,66 @@
           <div class="brand-header">
             <img src="./icons/icon-192.png" alt="1945 스카이 에이스 엠블럼" class="brand-emblem" width="58" height="58" />
             <div class="brand-titles">
+              <div class="remaster-chip">HD REMASTERED · 60FPS</div>
               <h1 class="game-title" id="main-title">STRIKERS <span>1945</span></h1>
-              <p class="game-subtitle">기체 진화 · 아이템 파밍 · 거대 보스 요격전</p>
+              <p class="game-subtitle">프리렌더링 3D 기체 진화 · 3페이즈 거대 보스전</p>
             </div>
           </div>
 
-          <div class="hangar-label">✈️ 출격 기체 선택 (무기 특성 변경)</div>
+          <div class="hangar-label">✈️ 출격 기체 선택 (주무장 & 부무장 특성)</div>
           <div class="fighter-grid" role="radiogroup" aria-label="출격 기체 선택">
             <button type="button" class="fighter-card is-selected" id="select-lightning" data-fighter="lightning" role="radio" aria-checked="true">
-              <canvas class="fighter-preview" id="preview-lightning" width="64" height="64"></canvas>
+              <canvas class="fighter-preview" id="preview-lightning" width="76" height="76"></canvas>
               <span class="fighter-name">P-38 라이트닝</span>
               <span class="fighter-spec">확산 발칸 + 유도미사일</span>
             </button>
 
             <button type="button" class="fighter-card" id="select-skyray" data-fighter="skyray" role="radio" aria-checked="false">
-              <canvas class="fighter-preview" id="preview-skyray" width="64" height="64"></canvas>
+              <canvas class="fighter-preview" id="preview-skyray" width="76" height="76"></canvas>
               <span class="fighter-name">XF-5F 스카이레이</span>
-              <span class="fighter-spec">집중 기관포 + 관통레이저</span>
+              <span class="fighter-spec">고속 발칸 + 관통레이저</span>
             </button>
 
             <button type="button" class="fighter-card" id="select-shinden" data-fighter="shinden" role="radio" aria-checked="false">
-              <canvas class="fighter-preview" id="preview-shinden" width="64" height="64"></canvas>
+              <canvas class="fighter-preview" id="preview-shinden" width="76" height="76"></canvas>
               <span class="fighter-name">J7W 신덴</span>
-              <span class="fighter-spec">초고속 기동 + 폭발로켓</span>
+              <span class="fighter-spec">중기관포 + 네이팜로켓</span>
             </button>
           </div>
 
           <div class="controls-guide">
-            <div>📱 <strong>조작:</strong> 화면 어디든 <strong>앞뒤·좌우 전방향</strong> 터치 슬라이드</div>
-            <div>⚡ <strong>진화:</strong> <strong>[P]</strong> 획득 시 기체 장갑·주포·보조무기·윙맨 드론 <strong>5단계 진화!</strong></div>
-            <div>🏅 <strong>아이템:</strong> <strong>[S]</strong> 방어막 · <strong>[B]</strong> 편대 융단폭격 · <strong>골드바</strong> 고득점</div>
+            <div>📱 <strong>전방향 이동:</strong> 화면 어디든 <strong>앞뒤·좌우 360°</strong> 터치 슬라이드</div>
+            <div>⚡ <strong>5단계 기체 진화:</strong> <strong>[P]</strong> 획득 시 3D 확장 기관포 포드·윙맨 드론 장착</div>
+            <div>💀 <strong>보스 공략:</strong> 좌·우 주포 포탑을 먼저 파괴하면 중앙 코어 장갑 해제!</div>
           </div>
 
           <button type="button" class="primary-cta" id="btn-start-game">
-            🔥 스크램블 출격 (START MISSION)
+            🔥 스크램블 출격 (LOADING HD...)
           </button>
 
-          <button type="button" class="secondary-cta" id="btn-install-pwa">
-            📲 스마트폰에 앱(PWA)으로 설치
+          <button type="button" class="install-cta" id="btn-install-pwa">
+            📲 스마트폰 앱(PWA) 다운로드 · 홈 화면 설치
           </button>
+        </div>
+      </section>
 
-          <div class="ios-guide-box" id="ios-install-guide" hidden>
-            💡 <strong>아이폰(Safari) 설치:</strong> 하단 <strong>[공유 ↑]</strong> → <strong>[홈 화면에 추가]</strong>를 선택하면 전체화면 앱으로 작동합니다!
-          </div>
+      <!-- Smart PWA Download / Install Guide Modal (Galaxy Chrome / Samsung Internet / In-App / iOS) -->
+      <section class="overlay-screen" id="install-modal" hidden aria-labelledby="install-modal-title">
+        <div class="modal-panel">
+          <h2 class="game-title" id="install-modal-title" style="font-size: 1.25rem;">📲 PWA <span>앱 다운로드</span></h2>
+          <p class="game-subtitle" id="install-modal-desc" style="margin-top: 6px;">
+            홈 화면에 설치하면 주소창 없는 전체화면 네이티브 앱으로 오프라인에서도 즉시 실행됩니다.
+          </p>
+
+          <div class="install-steps" id="install-steps-content"></div>
+
+          <a class="primary-cta install-chrome-link" id="btn-open-chrome" href="intent://kairen7683-cyber.github.io/star-galaga-pwa/#Intent;scheme=https;package=com.android.chrome;end" hidden>
+            🌐 Chrome 브라우저로 열어서 바로 설치
+          </a>
+
+          <button type="button" class="secondary-cta" id="btn-close-install-modal">
+            닫기
+          </button>
         </div>
       </section>
 
@@ -126,6 +158,9 @@
           <div style="margin-top: 18px;">
             <button type="button" class="primary-cta" id="btn-resume-game">
               ▶ 전투 복귀
+            </button>
+            <button type="button" class="install-cta" id="btn-pause-install">
+              📲 스마트폰 앱(PWA)으로 다운로드
             </button>
             <button type="button" class="secondary-cta" id="btn-restart-from-pause">
               ✈️ 격납고로 돌아가기 (기체 재선택)

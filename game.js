@@ -2,13 +2,14 @@
   'use strict';
 
   /* =========================================================================
-   * 1. WEB AUDIO ARCADE SOUND ENGINE (100% Synthesized, Zero Network Lag)
+   * 1. WEB AUDIO ARCADE SOUND ENGINE (Zero External MP3 Lag)
    * ========================================================================= */
   class SoundEngine {
     constructor() {
       this.ctx = null;
       this.enabled = true;
       this.lastShotAt = 0;
+      this.lastClinkAt = 0;
     }
 
     unlock() {
@@ -45,7 +46,7 @@
       const buf = this.ctx.createBuffer(1, len, sr);
       const data = buf.getChannelData(0);
       for (let i = 0; i < len; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.3);
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.25);
       }
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
@@ -63,31 +64,34 @@
 
     vulcan(powerLv) {
       const now = performance.now();
-      if (now - this.lastShotAt < 55) return;
+      if (now - this.lastShotAt < 58) return;
       this.lastShotAt = now;
-      this.tone(720 + powerLv * 55, 210, 0.048, 'triangle', 0.042);
+      this.tone(760 + powerLv * 48, 220, 0.045, 'triangle', 0.038);
     }
 
     laserBeam() {
-      this.tone(1320, 440, 0.09, 'sawtooth', 0.04);
+      this.tone(1380, 420, 0.085, 'sawtooth', 0.036);
     }
 
     missileLaunch() {
-      this.noise(0.09, 0.045, 2200);
+      this.noise(0.085, 0.042, 2400);
     }
 
-    hitMetal() {
-      this.tone(440, 260, 0.04, 'square', 0.035);
+    armorClink() {
+      const now = performance.now();
+      if (now - this.lastClinkAt < 75) return;
+      this.lastClinkAt = now;
+      this.tone(1180, 680, 0.032, 'square', 0.025);
     }
 
     explodeSmall() {
-      this.noise(0.16, 0.09, 980);
-      this.tone(240, 58, 0.14, 'sawtooth', 0.055);
+      this.noise(0.18, 0.095, 1050);
+      this.tone(240, 54, 0.15, 'sawtooth', 0.055);
     }
 
     explodeBig() {
-      this.noise(0.46, 0.19, 760);
-      this.tone(160, 36, 0.42, 'sawtooth', 0.1);
+      this.noise(0.52, 0.21, 780);
+      this.tone(155, 34, 0.46, 'sawtooth', 0.11);
     }
 
     powerUp(isMax = false) {
@@ -96,24 +100,24 @@
     }
 
     medal() {
-      this.tone(988, 1318, 0.075, 'sine', 0.06);
+      this.tone(988, 1318, 0.075, 'sine', 0.058);
     }
 
     warningSiren() {
       for (let i = 0; i < 3; i++) {
-        this.tone(420, 740, 0.24, 'sawtooth', 0.075, i * 0.34);
+        this.tone(410, 760, 0.25, 'sawtooth', 0.08, i * 0.34);
       }
     }
 
     airStrike() {
-      this.noise(0.75, 0.22, 650);
-      this.tone(130, 45, 0.68, 'sawtooth', 0.12);
+      this.noise(0.8, 0.23, 680);
+      this.tone(135, 42, 0.72, 'sawtooth', 0.12);
     }
   }
 
   /* =========================================================================
-   * 2. PRE-BAKED HD METALLIC SPRITE VAULT (60FPS on Galaxy A-Series Phones)
-   *    Zero ctx.shadowBlur in game loop! All gradients & glows baked once.
+   * 2. HD 3D PRE-RENDERED PBR ASSET VAULT + PROCEDURAL PROJECTILES/CLOUDS
+   *    StarCraft: Remastered / Sky Force Reloaded Visual Pipeline (Locked 60FPS)
    * ========================================================================= */
   function makeCanvas(w, h, drawFn) {
     const c = document.createElement('canvas');
@@ -124,83 +128,36 @@
     return c;
   }
 
-  function buildSprites() {
-    const vault = { fighters: {}, enemies: {}, bullets: {}, items: {}, bg: {}, fx: [] };
-
-    // --- Seamless Deep Ocean Tile (256x256) ---
-    vault.bg.ocean = makeCanvas(256, 256, (c, w, h) => {
-      const g = c.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#082038');
-      g.addColorStop(0.5, '#0a2744');
-      g.addColorStop(1, '#082038');
-      c.fillStyle = g;
+  function makeShadowSprite(img, targetW, targetH) {
+    return makeCanvas(targetW, targetH, (c, w, h) => {
+      c.drawImage(img, 0, 0, w, h);
+      c.globalCompositeOperation = 'source-in';
+      c.fillStyle = 'rgba(2, 6, 16, 0.46)';
       c.fillRect(0, 0, w, h);
-
-      // Subtle wave crests
-      for (let i = 0; i < 64; i++) {
-        const wx = (i * 47) % (w - 28);
-        const wy = (i * 41) % h;
-        c.fillStyle = i % 3 === 0 ? 'rgba(56, 189, 248, 0.09)' : 'rgba(14, 116, 144, 0.16)';
-        c.beginPath();
-        c.ellipse(wx + 14, wy, 12 + (i % 7), 2, 0, 0, Math.PI * 2);
-        c.fill();
-      }
     });
+  }
 
-    // --- Tropical Atoll Island & Radar Base ---
-    vault.bg.islandA = makeCanvas(180, 150, (c) => {
-      // Shallow coral reef halo
-      const reef = c.createRadialGradient(90, 75, 22, 90, 75, 82);
-      reef.addColorStop(0, 'rgba(20, 184, 166, 0.42)');
-      reef.addColorStop(0.65, 'rgba(6, 182, 212, 0.16)');
-      reef.addColorStop(1, 'rgba(6, 182, 212, 0)');
-      c.fillStyle = reef;
-      c.beginPath();
-      c.arc(90, 75, 82, 0, Math.PI * 2);
-      c.fill();
+  function buildProceduralOverlays() {
+    const overlays = {
+      clouds: [],
+      bullets: {},
+      items: {},
+      propBlur: null
+    };
 
-      // Sand beach
-      c.fillStyle = '#d6b87c';
-      c.beginPath();
-      c.ellipse(88, 76, 54, 40, -0.2, 0, Math.PI * 2);
-      c.fill();
-
-      // Jungle canopy
-      const jg = c.createLinearGradient(45, 40, 130, 110);
-      jg.addColorStop(0, '#1f6f43');
-      jg.addColorStop(1, '#11422a');
-      c.fillStyle = jg;
-      c.beginPath();
-      c.ellipse(86, 74, 44, 31, -0.2, 0, Math.PI * 2);
-      c.fill();
-
-      // Airfield runway strip on island
-      c.save();
-      c.translate(92, 76);
-      c.rotate(-0.25);
-      c.fillStyle = '#475569';
-      c.fillRect(-26, -5, 52, 10);
-      c.strokeStyle = '#e2e8f0';
-      c.setLineDash([4, 4]);
-      c.beginPath();
-      c.moveTo(-22, 0);
-      c.lineTo(22, 0);
-      c.stroke();
-      c.restore();
-    });
-
-    // --- Soft Volumetric Cloud ---
-    vault.bg.cloud = makeCanvas(190, 120, (c) => {
+    // High-altitude realistic translucent cloud puffs
+    overlays.cloud = makeCanvas(240, 150, (c) => {
       const puffs = [
-        [65, 65, 42],
-        [105, 56, 48],
-        [135, 68, 36],
-        [88, 74, 38]
+        [85, 78, 52],
+        [135, 68, 58],
+        [168, 86, 44],
+        [62, 90, 38],
+        [118, 92, 48]
       ];
       puffs.forEach(([x, y, r]) => {
-        const g = c.createRadialGradient(x - 6, y - 8, 4, x, y, r);
-        g.addColorStop(0, 'rgba(241, 245, 249, 0.24)');
-        g.addColorStop(0.6, 'rgba(203, 213, 225, 0.11)');
+        const g = c.createRadialGradient(x - 8, y - 8, 4, x, y, r);
+        g.addColorStop(0, 'rgba(248, 250, 252, 0.24)');
+        g.addColorStop(0.55, 'rgba(226, 232, 240, 0.12)');
         g.addColorStop(1, 'rgba(203, 213, 225, 0)');
         c.fillStyle = g;
         c.beginPath();
@@ -209,540 +166,306 @@
       });
     });
 
-    // --- Helper to bake 3 Evolution Tiers for each Fighter ---
-    function bakeFighterTier(type, tier) {
-      // tier: 1 (LV.1), 2 (LV.2-3), 3 (LV.4-5 Golden Ace)
-      return makeCanvas(84, 84, (c, w, h) => {
-        const cx = w / 2;
-        const cy = h / 2 + 2;
-
-        // Tier 3 Golden Ace Halo
-        if (tier === 3) {
-          const aura = c.createRadialGradient(cx, cy, 8, cx, cy, 38);
-          aura.addColorStop(0, 'rgba(251, 191, 36, 0.28)');
-          aura.addColorStop(1, 'rgba(251, 191, 36, 0)');
-          c.fillStyle = aura;
-          c.beginPath();
-          c.arc(cx, cy, 38, 0, Math.PI * 2);
-          c.fill();
-        }
-
-        const hullGrad = c.createLinearGradient(cx - 28, cy, cx + 28, cy);
-        if (tier === 3) {
-          hullGrad.addColorStop(0, '#b45309');
-          hullGrad.addColorStop(0.3, '#fde68a');
-          hullGrad.addColorStop(0.5, '#ffffff');
-          hullGrad.addColorStop(0.7, '#fbbf24');
-          hullGrad.addColorStop(1, '#92400e');
-        } else if (type === 'lightning') {
-          hullGrad.addColorStop(0, '#64748b');
-          hullGrad.addColorStop(0.35, '#f1f5f9');
-          hullGrad.addColorStop(0.5, '#ffffff');
-          hullGrad.addColorStop(0.65, '#cbd5e1');
-          hullGrad.addColorStop(1, '#475569');
-        } else if (type === 'skyray') {
-          hullGrad.addColorStop(0, '#1e3a8a');
-          hullGrad.addColorStop(0.35, '#93c5fd');
-          hullGrad.addColorStop(0.5, '#f8fafc');
-          hullGrad.addColorStop(0.65, '#60a5fa');
-          hullGrad.addColorStop(1, '#1e40af');
-        } else {
-          // shinden crimson-obsidian ace
-          hullGrad.addColorStop(0, '#7f1d1d');
-          hullGrad.addColorStop(0.35, '#f87171');
-          hullGrad.addColorStop(0.5, '#fee2e2');
-          hullGrad.addColorStop(0.65, '#ef4444');
-          hullGrad.addColorStop(1, '#7f1d1d');
-        }
-
-        const accent = tier >= 2 ? '#f59e0b' : '#ef3349';
-
-        if (type === 'lightning') {
-          // P-38 Twin-Boom Metallic Fighter
-          c.fillStyle = hullGrad;
-          // Main swept wings
-          c.beginPath();
-          c.moveTo(cx, cy - 16);
-          c.lineTo(cx + 34, cy + 4);
-          c.lineTo(cx + 32, cy + 12);
-          c.lineTo(cx, cy + 6);
-          c.lineTo(cx - 32, cy + 12);
-          c.lineTo(cx - 34, cy + 4);
-          c.closePath();
-          c.fill();
-          c.strokeStyle = 'rgba(15, 23, 42, 0.65)';
-          c.lineWidth = 1.2;
-          c.stroke();
-
-          // Wingtip crimson/gold stripes
-          c.fillStyle = accent;
-          c.fillRect(cx - 31, cy + 3, 9, 6);
-          c.fillRect(cx + 22, cy + 3, 9, 6);
-
-          // Tier 2+ Under-wing Missile Pods & Extra Barrels
-          if (tier >= 2) {
-            c.fillStyle = '#38bdf8';
-            c.fillRect(cx - 23, cy - 10, 4, 12);
-            c.fillRect(cx + 19, cy - 10, 4, 12);
-          }
-          if (tier === 3) {
-            c.fillStyle = '#fbbf24';
-            c.fillRect(cx - 6, cy - 34, 3, 10);
-            c.fillRect(cx + 3, cy - 34, 3, 10);
-          }
-
-          // Twin booms & horizontal tailplane
-          c.fillStyle = hullGrad;
-          c.fillRect(cx - 14, cy - 18, 6, 44);
-          c.fillRect(cx + 8, cy - 18, 6, 44);
-          c.fillRect(cx - 16, cy + 21, 32, 6);
-
-          // Central fuselage gondola
-          c.beginPath();
-          c.ellipse(cx, cy - 8, 7.5, 21, 0, 0, Math.PI * 2);
-          c.fill();
-          c.stroke();
-
-          // Nose vulcan barrels
-          c.fillStyle = '#e2e8f0';
-          c.fillRect(cx - 2.5, cy - 33, 2, 7);
-          c.fillRect(cx + 0.5, cy - 33, 2, 7);
-        } else if (type === 'skyray') {
-          // XF-5F Delta/Saucer Naval Interceptor
-          c.fillStyle = hullGrad;
-          c.beginPath();
-          c.moveTo(cx, cy - 31);
-          c.quadraticCurveTo(cx + 36, cy - 6, cx + 33, cy + 16);
-          c.lineTo(cx + 10, cy + 24);
-          c.lineTo(cx - 10, cy + 24);
-          c.lineTo(cx - 33, cy + 16);
-          c.quadraticCurveTo(cx - 36, cy - 6, cx, cy - 31);
-          c.closePath();
-          c.fill();
-          c.strokeStyle = 'rgba(15, 23, 42, 0.7)';
-          c.lineWidth = 1.3;
-          c.stroke();
-
-          // Glowing Plasma Channels on wings
-          c.strokeStyle = tier === 3 ? '#fef08a' : '#22d3ee';
-          c.lineWidth = tier >= 2 ? 2.6 : 1.6;
-          c.beginPath();
-          c.moveTo(cx - 16, cy - 14);
-          c.lineTo(cx - 16, cy + 14);
-          c.moveTo(cx + 16, cy - 14);
-          c.lineTo(cx + 16, cy + 14);
-          c.stroke();
-        } else {
-          // J7W Shinden Canard Pusher Fighter
-          c.fillStyle = hullGrad;
-          // Forward canards
-          c.beginPath();
-          c.moveTo(cx, cy - 26);
-          c.lineTo(cx + 15, cy - 14);
-          c.lineTo(cx - 15, cy - 14);
-          c.closePath();
-          c.fill();
-
-          // Swept main rear wings
-          c.beginPath();
-          c.moveTo(cx, cy - 10);
-          c.lineTo(cx + 34, cy + 18);
-          c.lineTo(cx + 28, cy + 25);
-          c.lineTo(cx, cy + 16);
-          c.lineTo(cx - 28, cy + 25);
-          c.lineTo(cx - 34, cy + 18);
-          c.closePath();
-          c.fill();
-          c.strokeStyle = 'rgba(15, 23, 42, 0.7)';
-          c.lineWidth = 1.2;
-          c.stroke();
-
-          // Fuselage spine
-          c.fillStyle = tier === 3 ? '#fef3c7' : '#f8fafc';
-          c.beginPath();
-          c.ellipse(cx, cy - 2, 7, 27, 0, 0, Math.PI * 2);
-          c.fill();
-
-          if (tier >= 2) {
-            c.fillStyle = '#fbbf24';
-            c.fillRect(cx - 22, cy + 2, 5, 14);
-            c.fillRect(cx + 17, cy + 2, 5, 14);
-          }
-        }
-
-        // Glass Canopy Highlight (shared across fighters)
-        const canopy = c.createLinearGradient(cx - 4, cy - 14, cx + 4, cy - 2);
-        canopy.addColorStop(0, '#bae6fd');
-        canopy.addColorStop(0.5, '#0284c7');
-        canopy.addColorStop(1, '#0f172a');
-        c.fillStyle = canopy;
-        c.beginPath();
-        c.ellipse(cx, cy - 7, 4.2, 9.5, 0, 0, Math.PI * 2);
-        c.fill();
-      });
-    }
-
-    ['lightning', 'skyray', 'shinden'].forEach((t) => {
-      vault.fighters[t] = {
-        1: bakeFighterTier(t, 1),
-        2: bakeFighterTier(t, 2),
-        3: bakeFighterTier(t, 3)
-      };
-    });
-
-    // --- Autonomous Wingman Option Drone ---
-    vault.fighters.drone = makeCanvas(32, 32, (c) => {
-      c.fillStyle = '#fbbf24';
-      c.beginPath();
-      c.moveTo(16, 3);
-      c.lineTo(28, 21);
-      c.lineTo(16, 17);
-      c.lineTo(4, 21);
-      c.closePath();
-      c.fill();
-      c.fillStyle = '#38bdf8';
-      c.beginPath();
-      c.arc(16, 13, 3.5, 0, Math.PI * 2);
-      c.fill();
-    });
-
-    // --- Allied B-29 Air-Strike Giant Bomber ---
-    vault.fighters.bomber = makeCanvas(150, 120, (c) => {
-      const g = c.createLinearGradient(25, 0, 125, 0);
-      g.addColorStop(0, '#475569');
-      g.addColorStop(0.5, '#f1f5f9');
-      g.addColorStop(1, '#475569');
-      c.fillStyle = g;
-      // Wide heavy bomber wing
-      c.fillRect(10, 44, 130, 20);
-      // 4 engine nacelles
-      [28, 52, 98, 122].forEach((ex) => {
-        c.fillStyle = '#334155';
-        c.fillRect(ex - 5, 34, 10, 26);
-      });
-      // Fuselage
+    // Spinning propeller motion blur disc
+    overlays.propBlur = makeCanvas(28, 10, (c) => {
+      const g = c.createRadialGradient(14, 5, 1, 14, 5, 14);
+      g.addColorStop(0, 'rgba(255,255,255,0.65)');
+      g.addColorStop(0.6, 'rgba(226,232,240,0.32)');
+      g.addColorStop(1, 'rgba(226,232,240,0)');
       c.fillStyle = g;
       c.beginPath();
-      c.ellipse(75, 58, 10, 50, 0, 0, Math.PI * 2);
-      c.fill();
-      c.fillRect(54, 98, 42, 9);
-      // Allied Star Roundel
-      c.fillStyle = '#38bdf8';
-      c.beginPath();
-      c.arc(32, 54, 6, 0, Math.PI * 2);
+      c.ellipse(14, 5, 13, 3.5, 0, 0, Math.PI * 2);
       c.fill();
     });
 
-    // --- Enemy Sprites ---
-    const bakeScout = (mainCol, wingMark) =>
-      makeCanvas(48, 48, (c) => {
-        const g = c.createLinearGradient(8, 0, 40, 0);
-        g.addColorStop(0, mainCol[0]);
-        g.addColorStop(0.5, mainCol[1]);
-        g.addColorStop(1, mainCol[0]);
-        c.fillStyle = g;
-        c.beginPath();
-        c.moveTo(24, 42);
-        c.lineTo(44, 18);
-        c.lineTo(42, 11);
-        c.lineTo(24, 17);
-        c.lineTo(6, 11);
-        c.lineTo(4, 18);
-        c.closePath();
-        c.fill();
-        c.fillRect(16, 5, 16, 5);
-        c.beginPath();
-        c.ellipse(24, 23, 5.5, 17, 0, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = wingMark;
-        c.beginPath();
-        c.arc(13, 18, 3.2, 0, Math.PI * 2);
-        c.arc(35, 18, 3.2, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = '#fde047';
-        c.beginPath();
-        c.ellipse(24, 26, 3, 5, 0, 0, Math.PI * 2);
-        c.fill();
-      });
-
-    vault.enemies.scout = bakeScout(['#365314', '#84cc16'], '#ef4444');
-    vault.enemies.supply = bakeScout(['#991b1b', '#f87171'], '#fef08a');
-
-    // Medium Twin-Engine Gunship
-    vault.enemies.gunship = makeCanvas(96, 82, (c) => {
-      const g = c.createLinearGradient(12, 0, 84, 0);
-      g.addColorStop(0, '#1e293b');
-      g.addColorStop(0.5, '#94a3b8');
-      g.addColorStop(1, '#1e293b');
-      c.fillStyle = g;
-      c.beginPath();
-      c.moveTo(48, 72);
-      c.lineTo(90, 32);
-      c.lineTo(86, 20);
-      c.lineTo(10, 20);
-      c.lineTo(6, 32);
-      c.closePath();
-      c.fill();
-      c.strokeStyle = '#0f172a';
-      c.lineWidth = 1.5;
-      c.stroke();
-
-      // Twin engines
-      c.fillStyle = '#475569';
-      c.fillRect(22, 22, 12, 32);
-      c.fillRect(62, 22, 12, 32);
-      // Central heavy hull
-      c.fillStyle = '#cbd5e1';
-      c.beginPath();
-      c.ellipse(48, 42, 11, 28, 0, 0, Math.PI * 2);
-      c.fill();
-      // Orange cockpit & turret core
-      c.fillStyle = '#f97316';
-      c.beginPath();
-      c.arc(48, 50, 6, 0, Math.PI * 2);
-      c.fill();
-    });
-
-    // Naval Battleship / Cruiser
-    vault.enemies.battleship = makeCanvas(68, 136, (c) => {
-      // White water wake
-      c.strokeStyle = 'rgba(224, 242, 254, 0.35)';
-      c.lineWidth = 3;
-      c.beginPath();
-      c.moveTo(34, 130);
-      c.lineTo(10, 16);
-      c.moveTo(34, 130);
-      c.lineTo(58, 16);
-      c.stroke();
-
-      // Armored deck hull
-      const g = c.createLinearGradient(16, 0, 52, 0);
-      g.addColorStop(0, '#334155');
-      g.addColorStop(0.5, '#64748b');
-      g.addColorStop(1, '#1e293b');
-      c.fillStyle = g;
-      c.beginPath();
-      c.moveTo(34, 126);
-      c.quadraticCurveTo(54, 92, 50, 22);
-      c.lineTo(18, 22);
-      c.quadraticCurveTo(14, 92, 34, 126);
-      c.closePath();
-      c.fill();
-
-      // Bridge & Twin Turrets
-      c.fillStyle = '#94a3b8';
-      c.fillRect(24, 48, 20, 28);
-      c.fillStyle = '#e2e8f0';
-      c.beginPath();
-      c.arc(34, 92, 7, 0, Math.PI * 2);
-      c.arc(34, 36, 7, 0, Math.PI * 2);
-      c.fill();
-    });
-
-    // Giant Flying Fortress Boss Hull
-    vault.enemies.bossBody = makeCanvas(230, 136, (c) => {
-      const g = c.createLinearGradient(15, 0, 215, 0);
-      g.addColorStop(0, '#1e293b');
-      g.addColorStop(0.25, '#64748b');
-      g.addColorStop(0.5, '#cbd5e1');
-      g.addColorStop(0.75, '#64748b');
-      g.addColorStop(1, '#1e293b');
-      c.fillStyle = g;
-      c.beginPath();
-      c.moveTo(115, 122);
-      c.lineTo(222, 58);
-      c.lineTo(214, 24);
-      c.lineTo(152, 16);
-      c.lineTo(78, 16);
-      c.lineTo(16, 24);
-      c.lineTo(8, 58);
-      c.closePath();
-      c.fill();
-      c.strokeStyle = '#0f172a';
-      c.lineWidth = 2;
-      c.stroke();
-
-      // Crimson armor trim
-      c.fillStyle = '#dc2626';
-      c.fillRect(36, 36, 158, 10);
-
-      // Central Armored Command Core
-      const coreG = c.createRadialGradient(115, 68, 4, 115, 68, 26);
-      coreG.addColorStop(0, '#fef08a');
-      coreG.addColorStop(0.45, '#ef4444');
-      coreG.addColorStop(1, '#450a0a');
-      c.fillStyle = coreG;
-      c.beginPath();
-      c.arc(115, 68, 24, 0, Math.PI * 2);
-      c.fill();
-      c.strokeStyle = '#fbbf24';
-      c.lineWidth = 2.5;
-      c.stroke();
-    });
-
-    vault.enemies.bossTurret = makeCanvas(44, 44, (c) => {
-      c.fillStyle = '#334155';
-      c.beginPath();
-      c.arc(22, 22, 16, 0, Math.PI * 2);
-      c.fill();
-      c.strokeStyle = '#94a3b8';
-      c.lineWidth = 2;
-      c.stroke();
-      c.fillStyle = '#fbbf24';
-      c.fillRect(16, 24, 4, 16);
-      c.fillRect(24, 24, 4, 16);
-    });
-
-    // --- Pre-Baked Glowing Projectiles ---
-    vault.bullets.vulcan = makeCanvas(12, 26, (c) => {
-      const g = c.createRadialGradient(6, 13, 1, 6, 13, 8);
+    // Crisp High-Luminance Player & Enemy Projectiles
+    overlays.bullets.vulcan = makeCanvas(14, 30, (c) => {
+      const g = c.createRadialGradient(7, 15, 1, 7, 15, 12);
       g.addColorStop(0, '#ffffff');
-      g.addColorStop(0.45, '#fde047');
-      g.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      g.addColorStop(0.38, '#fde047');
+      g.addColorStop(0.75, 'rgba(249, 115, 22, 0.65)');
+      g.addColorStop(1, 'rgba(249, 115, 22, 0)');
       c.fillStyle = g;
-      c.fillRect(0, 0, 12, 26);
+      c.fillRect(0, 0, 14, 30);
       c.fillStyle = '#ffffff';
-      c.fillRect(4, 3, 4, 18);
+      c.fillRect(5, 4, 4, 20);
     });
 
-    vault.bullets.laser = makeCanvas(18, 48, (c) => {
-      const g = c.createLinearGradient(0, 0, 18, 0);
+    overlays.bullets.vulcanMax = makeCanvas(16, 34, (c) => {
+      const g = c.createRadialGradient(8, 17, 1, 8, 17, 14);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.4, '#38bdf8');
+      g.addColorStop(0.78, 'rgba(250, 204, 21, 0.65)');
+      g.addColorStop(1, 'rgba(56, 189, 248, 0)');
+      c.fillStyle = g;
+      c.fillRect(0, 0, 16, 34);
+      c.fillStyle = '#ffffff';
+      c.fillRect(5.5, 3, 5, 25);
+    });
+
+    overlays.bullets.laser = makeCanvas(20, 56, (c) => {
+      const g = c.createLinearGradient(0, 0, 20, 0);
       g.addColorStop(0, 'rgba(34, 211, 238, 0)');
-      g.addColorStop(0.3, 'rgba(34, 211, 238, 0.85)');
+      g.addColorStop(0.28, 'rgba(56, 189, 248, 0.85)');
       g.addColorStop(0.5, '#ffffff');
-      g.addColorStop(0.7, 'rgba(34, 211, 238, 0.85)');
+      g.addColorStop(0.72, 'rgba(56, 189, 248, 0.85)');
       g.addColorStop(1, 'rgba(34, 211, 238, 0)');
       c.fillStyle = g;
-      c.fillRect(0, 0, 18, 48);
+      c.fillRect(2, 0, 16, 56);
     });
 
-    vault.bullets.missile = makeCanvas(16, 28, (c) => {
+    overlays.bullets.missile = makeCanvas(18, 30, (c) => {
       c.fillStyle = '#e2e8f0';
-      c.fillRect(5, 4, 6, 16);
-      c.fillStyle = '#38bdf8';
-      c.beginPath();
-      c.moveTo(8, 0);
-      c.lineTo(12, 6);
-      c.lineTo(4, 6);
-      c.closePath();
-      c.fill();
-      c.fillStyle = '#fb923c';
-      c.beginPath();
-      c.arc(8, 22, 4, 0, Math.PI * 2);
-      c.fill();
-    });
-
-    vault.bullets.rocket = makeCanvas(18, 30, (c) => {
-      c.fillStyle = '#fca5a5';
-      c.fillRect(5, 5, 8, 16);
+      c.fillRect(6, 5, 6, 17);
       c.fillStyle = '#ef4444';
       c.beginPath();
       c.moveTo(9, 0);
-      c.lineTo(14, 7);
-      c.lineTo(4, 7);
+      c.lineTo(13, 6);
+      c.lineTo(5, 6);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#64748b';
+      c.fillRect(3, 16, 12, 4);
+      c.fillStyle = '#fde047';
+      c.fillRect(6, 22, 6, 7);
+    });
+
+    overlays.bullets.rocket = makeCanvas(20, 34, (c) => {
+      c.fillStyle = '#cbd5e1';
+      c.fillRect(6, 7, 8, 17);
+      c.fillStyle = '#f97316';
+      c.beginPath();
+      c.moveTo(10, 0);
+      c.lineTo(15, 8);
+      c.lineTo(5, 8);
       c.closePath();
       c.fill();
       c.fillStyle = '#fde047';
-      c.beginPath();
-      c.arc(9, 23, 5, 0, Math.PI * 2);
-      c.fill();
+      c.fillRect(6, 24, 8, 9);
     });
 
-    const bakeEnemyOrb = (outerCol, midCol) =>
-      makeCanvas(20, 20, (c) => {
-        const g = c.createRadialGradient(10, 10, 1.5, 10, 10, 9.5);
+    // High-contrast Arcade Enemy Bullets (Dark outline + neon outer halo + pure white core so NEVER invisible on HD maps!)
+    const makeEnemyOrb = (outerHex, midHex, sz = 22) =>
+      makeCanvas(sz, sz, (c) => {
+        const r = sz / 2;
+        c.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        c.beginPath();
+        c.arc(r, r, r * 0.68, 0, Math.PI * 2);
+        c.fill();
+
+        const g = c.createRadialGradient(r, r, 1, r, r, r * 0.92);
         g.addColorStop(0, '#ffffff');
-        g.addColorStop(0.38, midCol);
-        g.addColorStop(0.75, outerCol);
+        g.addColorStop(0.36, midHex);
+        g.addColorStop(0.7, outerHex);
         g.addColorStop(1, 'rgba(0,0,0,0)');
         c.fillStyle = g;
         c.beginPath();
-        c.arc(10, 10, 9.5, 0, Math.PI * 2);
+        c.arc(r, r, r * 0.92, 0, Math.PI * 2);
         c.fill();
-      });
-
-    vault.bullets.enemyRed = bakeEnemyOrb('rgba(239, 68, 68, 0.9)', '#fca5a5');
-    vault.bullets.enemyAmber = bakeEnemyOrb('rgba(245, 158, 11, 0.9)', '#fde047');
-
-    // --- Pre-Baked Items ([P], [B], [S], Gold Medal) ---
-    const bakeBadgeItem = (letter, bgA, bgB, rim) =>
-      makeCanvas(38, 38, (c) => {
-        const glow = c.createRadialGradient(19, 19, 4, 19, 19, 19);
-        glow.addColorStop(0, rim);
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = glow;
-        c.fillRect(0, 0, 38, 38);
-
-        const g = c.createLinearGradient(6, 6, 32, 32);
-        g.addColorStop(0, bgA);
-        g.addColorStop(1, bgB);
-        c.fillStyle = g;
-        c.beginPath();
-        if (typeof c.roundRect === 'function') {
-          c.roundRect(6, 6, 26, 26, 6);
-        } else {
-          c.rect(6, 6, 26, 26);
-        }
-        c.fill();
-        c.strokeStyle = '#ffffff';
-        c.lineWidth = 2;
-        c.stroke();
 
         c.fillStyle = '#ffffff';
-        c.font = 'italic 700 16px Chakra Petch, sans-serif';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(letter, 19, 20);
+        c.beginPath();
+        c.arc(r, r, r * 0.3, 0, Math.PI * 2);
+        c.fill();
       });
 
-    vault.items.P = bakeBadgeItem('P', '#f59e0b', '#b45309', 'rgba(251, 191, 36, 0.55)');
-    vault.items.B = bakeBadgeItem('B', '#ef4444', '#991b1b', 'rgba(248, 113, 113, 0.55)');
-    vault.items.S = bakeBadgeItem('S', '#06b6d4', '#0369a1', 'rgba(34, 211, 238, 0.55)');
+    overlays.bullets.enemyRed = makeEnemyOrb('rgba(239, 68, 68, 0.95)', '#fca5a5', 22);
+    overlays.bullets.enemyAmber = makeEnemyOrb('rgba(245, 158, 11, 0.95)', '#fde047', 22);
+    overlays.bullets.enemyPurple = makeEnemyOrb('rgba(217, 70, 239, 0.95)', '#f0abfc', 26);
 
-    vault.items.medal = makeCanvas(28, 28, (c) => {
-      const g = c.createLinearGradient(6, 4, 22, 24);
-      g.addColorStop(0, '#fef08a');
-      g.addColorStop(0.5, '#f59e0b');
-      g.addColorStop(1, '#92400e');
+    // 3D Metallic Arcade Item Capsules ([P], [B], [S]) + Gold Bullion Medal
+    const makeCapsule = (label, c1, c2, rim) =>
+      makeCanvas(42, 42, (c) => {
+        const halo = c.createRadialGradient(21, 21, 5, 21, 21, 20);
+        halo.addColorStop(0, rim);
+        halo.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = halo;
+        c.fillRect(0, 0, 42, 42);
+
+        const g = c.createLinearGradient(7, 7, 35, 35);
+        g.addColorStop(0, c1);
+        g.addColorStop(1, c2);
+        c.fillStyle = g;
+        c.beginPath();
+        if (typeof c.roundRect === 'function') c.roundRect(7, 7, 28, 28, 7);
+        else c.rect(7, 7, 28, 28);
+        c.fill();
+        c.lineWidth = 2.2;
+        c.strokeStyle = '#ffffff';
+        c.stroke();
+
+        // Metallic corner rivets
+        c.fillStyle = 'rgba(255,255,255,0.75)';
+        [[11, 11], [31, 11], [11, 31], [31, 31]].forEach(([rx, ry]) => c.fillRect(rx - 1, ry - 1, 2, 2));
+
+        c.fillStyle = '#ffffff';
+        c.font = 'italic 900 17px Chakra Petch, sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(label, 21, 22);
+      });
+
+    overlays.items.P = makeCapsule('P', '#ef4444', '#991b1b', 'rgba(248,113,113,0.65)');
+    overlays.items.B = makeCapsule('B', '#f59e0b', '#92400e', 'rgba(251,191,36,0.65)');
+    overlays.items.S = makeCapsule('S', '#06b6d4', '#155e75', 'rgba(34,211,238,0.65)');
+    overlays.items.medal = makeCanvas(30, 30, (c) => {
+      const g = c.createLinearGradient(5, 4, 25, 26);
+      g.addColorStop(0, '#fef9c3');
+      g.addColorStop(0.45, '#facc15');
+      g.addColorStop(1, '#a16207');
       c.fillStyle = g;
       c.beginPath();
-      c.moveTo(10, 4);
-      c.lineTo(21, 4);
-      c.lineTo(18, 24);
-      c.lineTo(7, 24);
+      c.moveTo(15, 2);
+      c.lineTo(26, 15);
+      c.lineTo(15, 28);
+      c.lineTo(4, 15);
       c.closePath();
       c.fill();
-      c.strokeStyle = '#fef9c3';
-      c.lineWidth = 1.4;
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 1.6;
       c.stroke();
+      c.fillStyle = '#713f12';
+      c.font = '900 11px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('★', 15, 16);
     });
 
-    // --- 8-Frame Pre-Baked Volumetric Explosion Sequence ---
-    for (let f = 0; f < 8; f++) {
-      const prog = f / 7;
-      vault.fx.push(
-        makeCanvas(96, 96, (c) => {
-          const r = 12 + prog * 34;
-          const alpha = Math.max(0, 1 - prog * 0.92);
-          const g = c.createRadialGradient(48, 48, 2, 48, 48, r);
-          g.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-          g.addColorStop(0.32, `rgba(253, 224, 71, ${alpha})`);
-          g.addColorStop(0.65, `rgba(239, 68, 68, ${alpha * 0.85})`);
-          g.addColorStop(1, 'rgba(30, 41, 59, 0)');
-          c.fillStyle = g;
-          c.beginPath();
-          c.arc(48, 48, r, 0, Math.PI * 2);
-          c.fill();
+    return overlays;
+  }
+
+  /* =========================================================================
+   * 3. ASYNC HD WEBP SPRITE & TERRAIN LOADER
+   * ========================================================================= */
+  const HD = {
+    ready: false,
+    terrains: {},
+    fighters: { lightning: {}, skyray: {}, shinden: {} },
+    fighterShadows: { lightning: {}, skyray: {}, shinden: {} },
+    enemies: {},
+    enemyShadows: {},
+    bosses: [],
+    bossShadows: [],
+    drone: null,
+    bomber: null,
+    bomberShadow: null,
+    explosionFrames: [],
+    ov: buildProceduralOverlays()
+  };
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        if (typeof img.decode === 'function') {
+          img.decode().then(() => resolve(img)).catch(() => resolve(img));
+        } else {
+          resolve(img);
+        }
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function loadAllHdAssets() {
+    const manifest = [
+      ['terrain_pacific', './assets/terrain_pacific.webp'],
+      ['terrain_fortress', './assets/terrain_fortress.webp'],
+      ['lightning_1', './assets/fighter_lightning_1.webp'],
+      ['lightning_2', './assets/fighter_lightning_2.webp'],
+      ['lightning_3', './assets/fighter_lightning_3.webp'],
+      ['skyray_1', './assets/fighter_skyray_1.webp'],
+      ['skyray_2', './assets/fighter_skyray_2.webp'],
+      ['skyray_3', './assets/fighter_skyray_3.webp'],
+      ['shinden_1', './assets/fighter_shinden_1.webp'],
+      ['shinden_2', './assets/fighter_shinden_2.webp'],
+      ['shinden_3', './assets/fighter_shinden_3.webp'],
+      ['drone', './assets/drone.webp'],
+      ['bomber', './assets/bomber_b29.webp'],
+      ['scout', './assets/enemy_scout.webp'],
+      ['supply', './assets/enemy_supply.webp'],
+      ['gunship', './assets/enemy_gunship.webp'],
+      ['battleship', './assets/enemy_battleship.webp'],
+      ['boss1', './assets/boss1_valkyrie.webp'],
+      ['boss2', './assets/boss2_dreadnought.webp'],
+      ['boss3', './assets/boss3_leviathan.webp'],
+      ['explosion', './assets/explosion_strip.webp']
+    ];
+
+    const loaded = {};
+    await Promise.all(
+      manifest.map(async ([key, url]) => {
+        loaded[key] = await loadImage(url);
+      })
+    );
+
+    HD.terrains.pacific = loaded.terrain_pacific;
+    HD.terrains.fortress = loaded.terrain_fortress;
+
+    // Fighters & their true silhouette altitude shadows (display sizes in logical CSS px)
+    const fDisplay = {
+      1: [64, 60],
+      2: [74, 64],
+      3: [82, 66]
+    };
+    ['lightning', 'skyray', 'shinden'].forEach((type) => {
+      for (let tier = 1; tier <= 3; tier++) {
+        const img = loaded[`${type}_${tier}`];
+        const aspect = img.height / img.width;
+        const dw = fDisplay[tier][0];
+        const dh = Math.round(dw * aspect);
+        HD.fighters[type][tier] = { img, w: dw, h: dh };
+        HD.fighterShadows[type][tier] = makeShadowSprite(img, dw, dh);
+      }
+    });
+
+    HD.drone = { img: loaded.drone, w: 30, h: Math.round(30 * (loaded.drone.height / loaded.drone.width)) };
+    HD.bomber = { img: loaded.bomber, w: 164, h: Math.round(164 * (loaded.bomber.height / loaded.bomber.width)) };
+    HD.bomberShadow = makeShadowSprite(loaded.bomber, HD.bomber.w, HD.bomber.h);
+
+    const eSizes = { scout: 54, supply: 58, gunship: 108, battleship: 46 };
+    ['scout', 'supply', 'gunship', 'battleship'].forEach((k) => {
+      const img = loaded[k];
+      const dw = eSizes[k];
+      const dh = Math.round(dw * (img.height / img.width));
+      HD.enemies[k] = { img, w: dw, h: dh };
+      if (k !== 'battleship') {
+        HD.enemyShadows[k] = makeShadowSprite(img, dw, dh);
+      }
+    });
+
+    // 3 Colossal Stage Bosses!
+    const bossConfigs = [
+      { img: loaded.boss1, w: 276, name: 'XB-0 IRON VALKYRIE', turretOffsetX: 74, turretOffsetY: 8 },
+      { img: loaded.boss2, w: 230, name: 'YAMATO-X DREADNOUGHT', turretOffsetX: 68, turretOffsetY: 16 },
+      { img: loaded.boss3, w: 242, name: 'GIGA LEVIATHAN', turretOffsetX: 64, turretOffsetY: 18 }
+    ];
+    bossConfigs.forEach((bc, idx) => {
+      const dh = Math.round(bc.w * (bc.img.height / bc.img.width));
+      HD.bosses[idx] = { ...bc, h: dh };
+      HD.bossShadows[idx] = makeShadowSprite(bc.img, bc.w, dh);
+    });
+
+    // Slice 12 frames (128x128 each) from explosion_strip.webp
+    for (let f = 0; f < 12; f++) {
+      HD.explosionFrames.push(
+        makeCanvas(128, 128, (c) => {
+          c.drawImage(loaded.explosion, f * 128, 0, 128, 128, 0, 0, 128, 128);
         })
       );
     }
 
-    return vault;
+    HD.ready = true;
+    renderHangarPreviews();
+    btnStartGame.textContent = '🔥 스크램블 출격 (START MISSION)';
   }
 
   /* =========================================================================
-   * 3. DOM & HANGAR CONTROLLER + PWA INSTALLER
+   * 4. DOM ELEMENTS, PWA INSTALL SYSTEM & GAME STATE
    * ========================================================================= */
+  const sound = new SoundEngine();
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d', { alpha: false });
   const viewportEl = document.getElementById('stage-viewport');
@@ -754,15 +477,16 @@
   const powerTextEl = document.getElementById('power-level-text');
   const powerPipsEl = document.getElementById('power-pips');
   const bombCountEl = document.getElementById('bomb-count');
-  const btnHyperBomb = document.getElementById('btn-hyper-bomb');
-  const btnAutoFire = document.getElementById('btn-autofire');
-  const btnSound = document.getElementById('btn-sound');
-  const btnPause = document.getElementById('btn-pause');
 
   const bossHudEl = document.getElementById('boss-hud');
   const bossNameEl = document.getElementById('boss-name-label');
   const bossHpPctEl = document.getElementById('boss-hp-pct');
   const bossHpFillEl = document.getElementById('boss-hp-fill');
+
+  const btnAutoFire = document.getElementById('btn-autofire');
+  const btnSound = document.getElementById('btn-sound');
+  const btnPause = document.getElementById('btn-pause');
+  const btnHyperBomb = document.getElementById('btn-hyper-bomb');
 
   const waveBannerEl = document.getElementById('wave-banner');
   const waveTitleEl = document.getElementById('wave-banner-title');
@@ -781,9 +505,57 @@
   const btnRestartPause = document.getElementById('btn-restart-from-pause');
   const btnRetryGame = document.getElementById('btn-retry-game');
   const btnBackHangar = document.getElementById('btn-back-hangar');
-  const btnInstallPwa = document.getElementById('btn-install-pwa');
-  const iosGuideEl = document.getElementById('ios-install-guide');
 
+  // PWA Install Elements
+  const btnInstallPwa = document.getElementById('btn-install-pwa');
+  const btnHudInstall = document.getElementById('btn-hud-install');
+  const btnPauseInstall = document.getElementById('btn-pause-install');
+  const installModalEl = document.getElementById('install-modal');
+  const installStepsEl = document.getElementById('install-steps-content');
+  const btnOpenChrome = document.getElementById('btn-open-chrome');
+  const btnCloseInstallModal = document.getElementById('btn-close-install-modal');
+
+  const STORAGE_KEY = 'strikers_1945_ace_highscore_v3';
+  let W = 380;
+  let H = 640;
+  let dpr = 1;
+  let bannerTimer = null;
+
+  const state = {
+    mode: 'title',
+    fighterType: 'lightning',
+    score: 0,
+    highScore: Number(localStorage.getItem(STORAGE_KEY) || localStorage.getItem('strikers_1945_ace_highscore_v2') || 0),
+    medals: 0,
+    medalChain: 0,
+    stage: 1,
+    waveStep: 0,
+    waveTimer: 1.2,
+    bossActive: false,
+    boss: null,
+    lives: 3,
+    bombs: 2,
+    autoFire: true,
+    nextLifeScore: 60000,
+    terrainScroll: 0,
+    screenShake: 0,
+    flashAlpha: 0,
+    player: null,
+    bullets: [],
+    enemyBullets: [],
+    enemies: [],
+    items: [],
+    explosions: [],
+    shockwaves: [],
+    sparks: [],
+    popups: [],
+    airStrikeBombers: [],
+    clouds: []
+  };
+
+  highScoreEl.textContent = state.highScore.toLocaleString();
+
+  /* --- Service Worker & Bulletproof PWA Download Logic --- */
   if ('serviceWorker' in navigator) {
     let reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -800,89 +572,104 @@
     });
   }
 
-  let deferredPrompt = null;
-  if (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
-  ) {
-    btnInstallPwa.hidden = true;
+  function isStandaloneApp() {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.navigator.standalone === true
+    );
   }
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    btnInstallPwa.hidden = false;
-  });
+
+  function syncInstallButtonsVisibility() {
+    const hide = isStandaloneApp();
+    btnInstallPwa.hidden = hide;
+    btnHudInstall.hidden = hide;
+    btnPauseInstall.hidden = hide;
+    if (window.__pwaDeferredPrompt && !hide) {
+      btnInstallPwa.textContent = '📲 스마트폰 앱(PWA) 바로 다운로드 · 설치';
+      btnHudInstall.textContent = '📲 앱다운';
+    }
+  }
+  syncInstallButtonsVisibility();
+  window.addEventListener('pwa-prompt-ready', syncInstallButtonsVisibility);
   window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    btnInstallPwa.hidden = true;
+    window.__pwaDeferredPrompt = null;
+    installModalEl.hidden = true;
+    syncInstallButtonsVisibility();
   });
-  btnInstallPwa.addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice.catch(() => {});
-      deferredPrompt = null;
+
+  async function triggerPwaInstall() {
+    sound.unlock();
+    if (window.__pwaDeferredPrompt) {
+      const promptEvent = window.__pwaDeferredPrompt;
+      promptEvent.prompt();
+      await promptEvent.userChoice.catch(() => {});
+      window.__pwaDeferredPrompt = null;
+      syncInstallButtonsVisibility();
+      return;
+    }
+
+    // Device-aware fallback instructions (Galaxy Chrome / Samsung Internet / In-App WebView / iOS)
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isAndroid = /Android/i.test(ua);
+    const isSamsungBrowser = /SamsungBrowser/i.test(ua);
+    const isInAppWebView =
+      isAndroid && (/; wv\)/i.test(ua) || /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|Line/i.test(ua));
+
+    btnOpenChrome.hidden = !isAndroid;
+
+    if (isIOS) {
+      installStepsEl.innerHTML =
+        '1️⃣ Safari 브라우저 하단 중앙의 <strong>[공유 ↑]</strong> 버튼을 터치하세요.<br/>' +
+        '2️⃣ 메뉴에서 <strong>[홈 화면에 추가]</strong>를 누르면 바탕화면에 <strong>1945에이스</strong> 앱이 설치됩니다!';
+    } else if (isInAppWebView) {
+      installStepsEl.innerHTML =
+        '현재 인앱 브라우저 화면에서는 바로 설치가 제한될 수 있습니다.<br/>' +
+        '👉 아래 초록색 <strong>[Chrome 브라우저로 열어서 바로 설치]</strong> 버튼을 누른 뒤, <strong>[📲 앱 설치]</strong>를 눌러주세요!';
+    } else if (isSamsungBrowser) {
+      installStepsEl.innerHTML =
+        '📱 <strong>갤럭시 삼성 인터넷 앱 다운로드 방법:</strong><br/>' +
+        '1️⃣ 상단 주소창의 <strong>[↓ 앱 설치]</strong> 아이콘을 누르거나, 우측 하단 <strong>[≡ 메뉴]</strong>를 터치하세요.<br/>' +
+        '2️⃣ <strong>[현재 페이지 추가] → [홈 화면]</strong>을 선택하면 앱으로 즉시 설치됩니다!';
+    } else if (isAndroid) {
+      installStepsEl.innerHTML =
+        '📱 <strong>갤럭시 / 안드로이드 앱 다운로드 방법:</strong><br/>' +
+        '1️⃣ 브라우저 우측 상단 점 3개 메뉴 <strong>[⋮]</strong>를 터치하세요.<br/>' +
+        '2️⃣ <strong>[앱 설치]</strong> 또는 <strong>[홈 화면에 추가] → [설치]</strong>를 누르면 스마트폰 앱으로 설치됩니다!<br/>' +
+        '<span style="font-size:0.74rem;color:#94a3b8;">(이미 설치된 경우 메뉴에 [1945에이스 열기]로 표시됩니다)</span>';
     } else {
-      iosGuideEl.hidden = !iosGuideEl.hidden;
-      if (!/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-        iosGuideEl.innerHTML =
-          '💡 <strong>앱 설치:</strong> 크롬/삼성 인터넷 우측 상단 <strong>[⋮ 메뉴] → [앱 설치 / 홈 화면에 추가]</strong>를 누르면 바탕화면 아이콘으로 설치됩니다!';
-      }
+      installStepsEl.innerHTML =
+        '💻 <strong>PC / 모바일 앱 설치 방법:</strong><br/>' +
+        '브라우저 주소창 우측의 <strong>[📥 앱 설치]</strong> 아이콘을 클릭하거나, 브라우저 메뉴 <strong>[⋮] → [앱 설치 / 홈 화면에 추가]</strong>를 선택하세요!';
     }
+
+    installModalEl.hidden = false;
+  }
+
+  btnInstallPwa.addEventListener('click', triggerPwaInstall);
+  btnHudInstall.addEventListener('click', triggerPwaInstall);
+  btnPauseInstall.addEventListener('click', triggerPwaInstall);
+  btnCloseInstallModal.addEventListener('click', () => {
+    installModalEl.hidden = true;
   });
 
-  /* =========================================================================
-   * 4. GAME STATE & GALAXY A-SERIES ADAPTIVE VIEWPORT
-   * ========================================================================= */
-  const sound = new SoundEngine();
-  const SPRITES = buildSprites();
-  const HIGH_SCORE_KEY = 'strikers_1945_best_v2';
-
-  let W = 390;
-  let H = 660;
-  let dpr = 1;
-
-  const state = {
-    mode: 'title', // 'title' | 'playing' | 'paused' | 'gameover'
-    fighterType: 'lightning', // 'lightning' | 'skyray' | 'shinden'
-    score: 0,
-    highScore: Number(localStorage.getItem(HIGH_SCORE_KEY) || 0),
-    medals: 0,
-    stage: 1,
-    stageProgress: 0,
-    bossActive: false,
-    lives: 3,
-    bombs: 2,
-    autoFire: true,
-    nextLifeScore: 50000,
-    oceanScroll: 0,
-    screenShake: 0,
-    flashAlpha: 0,
-    waveTimer: 1.0,
-    waveStep: 0,
-    player: null,
-    bullets: [],
-    enemyBullets: [],
-    enemies: [],
-    boss: null,
-    items: [],
-    explosions: [],
-    sparks: [],
-    popups: [],
-    airStrikeBombers: [],
-    islands: [],
-    clouds: []
-  };
-
-  highScoreEl.textContent = state.highScore.toLocaleString();
-
-  // Draw Hangar Previews
-  ['lightning', 'skyray', 'shinden'].forEach((type) => {
-    const pCanvas = document.getElementById(`preview-${type}`);
-    if (pCanvas) {
+  function renderHangarPreviews() {
+    if (!HD.ready) return;
+    ['lightning', 'skyray', 'shinden'].forEach((type) => {
+      const pCanvas = document.getElementById(`preview-${type}`);
+      if (!pCanvas) return;
       const pCtx = pCanvas.getContext('2d');
-      pCtx.drawImage(SPRITES.fighters[type][3], 0, 0, 64, 64);
-    }
-  });
+      pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+      pCtx.imageSmoothingEnabled = true;
+      pCtx.imageSmoothingQuality = 'high';
+      const spr = HD.fighters[type][3].img;
+      const scale = Math.min(68 / spr.width, 68 / spr.height);
+      const dw = spr.width * scale;
+      const dh = spr.height * scale;
+      pCtx.drawImage(spr, (76 - dw) / 2, (76 - dh) / 2, dw, dh);
+    });
+  }
 
   document.querySelectorAll('.fighter-card').forEach((card) => {
     card.addEventListener('click', () => {
@@ -902,152 +689,150 @@
     const rect = viewportEl.getBoundingClientRect();
     W = Math.max(300, rect.width);
     H = Math.max(420, rect.height);
-    // Cap DPR at 1.75 for crisp HD graphics + locked 60 FPS on Galaxy A-series GPUs
-    dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    // Crisp Super AMOLED Retina resolution (up to 2.5x DPR) — effortless 60 FPS with GPU WebP textures!
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     canvas.width = Math.floor(W * dpr);
     canvas.height = Math.floor(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     if (state.player) {
-      state.player.x = Math.max(24, Math.min(W - 24, state.player.x));
-      state.player.y = Math.max(54, Math.min(H - 36, state.player.y));
+      state.player.x = Math.max(26, Math.min(W - 26, state.player.x));
+      state.player.y = Math.max(58, Math.min(H - 38, state.player.y));
     }
   }
   window.addEventListener('resize', resizeCanvas);
 
   function seedScenery() {
-    state.islands = [
-      { x: W * 0.22, y: H * 0.2, scale: 1.0 },
-      { x: W * 0.78, y: H * 0.72, scale: 0.82 }
-    ];
     state.clouds = [
-      { x: W * 0.18, y: H * 0.15, speed: 52, scale: 1.0 },
-      { x: W * 0.75, y: H * 0.55, speed: 68, scale: 1.15 },
-      { x: W * 0.42, y: H * 0.88, speed: 45, scale: 0.85 }
+      { x: W * 0.2, y: H * 0.14, speed: 62, scale: 1.05 },
+      { x: W * 0.78, y: H * 0.52, speed: 82, scale: 1.2 },
+      { x: W * 0.44, y: H * 0.86, speed: 54, scale: 0.9 }
     ];
   }
 
   function createPlayer() {
     return {
       x: W / 2,
-      y: H - 72,
-      power: 1, // 1 to 5 (MAX)
+      y: H - 76,
+      power: 1, // 1..5
       shield: false,
       invuln: 2.2,
-      bank: 0, // -1 (left) to +1 (right)
-      thrust: 0,
       mainCd: 0,
       subCd: 0,
-      dronePhase: 0
+      bank: 0,
+      thrust: 0,
+      dronePhase: 0,
+      muzzleFlash: 0
     };
   }
 
-  /* =========================================================================
-   * 5. HUD, ITEMS, WEAPONS & UPGRADE EVOLUTION
-   * ========================================================================= */
-  function showBanner(title, sub, isWarning = false, ms = 2200) {
+  function showBanner(title, sub, isWarning = false, ms = 2300) {
     waveTitleEl.textContent = title;
     waveSubEl.textContent = sub;
     waveBannerEl.classList.toggle('is-warning', isWarning);
     waveBannerEl.classList.add('is-visible');
-    clearTimeout(showBanner._t);
-    showBanner._t = setTimeout(() => waveBannerEl.classList.remove('is-visible'), ms);
+    if (bannerTimer) clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => waveBannerEl.classList.remove('is-visible'), ms);
   }
 
   function addScore(pts, x, y, label = null, color = '#fde047') {
     state.score += pts;
-    if (state.score >= state.nextLifeScore) {
-      state.lives = Math.min(5, state.lives + 1);
-      state.nextLifeScore += 75000;
-      if (state.player) addPopup(state.player.x, state.player.y - 28, '1UP EXTEND!', '#34d399');
-      sound.powerUp(true);
-      updateHud();
-    }
     if (state.score > state.highScore) {
       state.highScore = state.score;
-      localStorage.setItem(HIGH_SCORE_KEY, String(state.highScore));
-      highScoreEl.textContent = state.highScore.toLocaleString();
+      localStorage.setItem(STORAGE_KEY, String(state.highScore));
     }
-    scoreEl.textContent = state.score.toLocaleString();
-    if (x != null && y != null && label) {
-      addPopup(x, y, label, color);
+    if (state.score >= state.nextLifeScore) {
+      state.nextLifeScore += 75000;
+      if (state.lives < 5) {
+        state.lives++;
+        sound.powerUp(true);
+        addPopup(W / 2, H / 2, '1UP EXTRA FIGHTER!', '#4ade80');
+      }
     }
+    if (label && x != null && y != null) addPopup(x, y, label, color);
+    updateHud();
   }
 
   function addPopup(x, y, text, color = '#fde047') {
-    if (state.popups.length > 24) state.popups.shift();
-    state.popups.push({ x, y, text, color, life: 0.85, maxLife: 0.85 });
+    state.popups.push({ x, y, text, color, life: 0.95, maxLife: 0.95 });
   }
 
-  function spawnExplosion(x, y, scale = 1.0, sparkCount = 10) {
-    if (state.explosions.length < 28) {
-      state.explosions.push({ x, y, scale, frame: 0, speed: 18 });
+  function spawnExplosion(x, y, scale = 1.0, sparkCount = 10, shockwave = false) {
+    state.explosions.push({ x, y, scale, frame: 0, speed: 24 });
+    if (shockwave) {
+      state.shockwaves.push({ x, y, r: 8, maxR: 72 * scale, alpha: 0.85 });
     }
-    const maxSparks = state.sparks.length > 90 ? 4 : sparkCount;
-    for (let i = 0; i < maxSparks; i++) {
+    const palette = ['#ffffff', '#fde047', '#fb923c', '#ef4444'];
+    for (let i = 0; i < sparkCount; i++) {
+      if (state.sparks.length > 140) break;
       const a = Math.random() * Math.PI * 2;
-      const spd = 50 + Math.random() * 190 * scale;
+      const spd = 55 + Math.random() * 195 * scale;
       state.sparks.push({
         x,
         y,
         vx: Math.cos(a) * spd,
         vy: Math.sin(a) * spd,
-        color: i % 2 === 0 ? '#fde047' : '#fb7185',
-        life: 0.25 + Math.random() * 0.25
+        color: palette[i % palette.length],
+        size: 1.8 + Math.random() * 2.2,
+        life: 0.24 + Math.random() * 0.34
       });
     }
   }
 
   function spawnItem(x, y, kind) {
-    // 'P' bounces around screen like real Strikers 1945!
-    const isBouncing = kind === 'P' || kind === 'B' || kind === 'S';
-    const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 1.1;
+    const isMedal = kind === 'medal';
     state.items.push({
-      x,
-      y,
-      vx: isBouncing ? Math.cos(angle) * 95 : (Math.random() - 0.5) * 24,
-      vy: isBouncing ? Math.sin(angle) * 95 : 88,
-      kind, // 'P' | 'B' | 'S' | 'medal'
-      bounces: isBouncing ? 4 : 0,
-      spin: Math.random() * Math.PI * 2
+      kind,
+      x: Math.max(24, Math.min(W - 24, x)),
+      y: Math.max(44, y),
+      vx: isMedal ? (Math.random() - 0.5) * 28 : (Math.random() < 0.5 ? -1 : 1) * 78,
+      vy: isMedal ? 76 : -68,
+      bounces: isMedal ? 0 : 5,
+      spin: 0
     });
   }
 
   function collectItem(it) {
     const p = state.player;
+    if (!p) return;
+
     if (it.kind === 'P') {
       if (p.power < 5) {
         p.power++;
-        const tierMsg =
-          p.power === 2
-            ? 'POW LV.2 // 보조무기 개방!'
-            : p.power === 3
-            ? 'POW LV.3 // 윙맨 드론 합류!'
-            : p.power === 4
-            ? 'POW LV.4 // 에이스 기체 진화!'
-            : 'MAX OVERDRIVE!!';
         sound.powerUp(p.power === 5);
-        addScore(500, p.x, p.y - 26, tierMsg, p.power === 5 ? '#fde047' : '#38bdf8');
+        const msg =
+          p.power === 5
+            ? 'MAX OVERDRIVE! 최종 기체 진화!'
+            : p.power === 3
+            ? 'AIRCRAFT EVOLVED + 윙맨 드론 합류!'
+            : p.power === 4
+            ? 'TWIN DRONES + 풀 아머 장착!'
+            : `WEAPON UPGRADE LV.${p.power}!`;
+        addScore(500, it.x, it.y, msg, p.power === 5 ? '#fde047' : '#38bdf8');
       } else {
         sound.powerUp(true);
-        addScore(2000, p.x, p.y - 26, 'MAX BONUS +2,000!', '#fde047');
+        addScore(3000, it.x, it.y, 'MAX POWER BONUS +3,000!', '#fde047');
       }
     } else if (it.kind === 'B') {
-      state.bombs = Math.min(5, state.bombs + 1);
       sound.powerUp(false);
-      addScore(500, p.x, p.y - 26, 'BOMB +1!', '#f87171');
+      if (state.bombs < 5) {
+        state.bombs++;
+        addScore(500, it.x, it.y, 'B-29 AIR STRIKE +1!', '#fbbf24');
+      } else {
+        addScore(2500, it.x, it.y, 'BOMB STOCK MAX +2,500!', '#fbbf24');
+      }
     } else if (it.kind === 'S') {
-      p.shield = true;
       sound.powerUp(false);
-      addScore(500, p.x, p.y - 26, 'SHIELD ACTIVE!', '#22d3ee');
-    } else {
-      // Gold Medal: shinier spin phase awards up to 1,000 pts!
-      state.medals++;
-      const glint = Math.abs(Math.cos(it.spin)) > 0.82;
-      const pts = glint ? 1000 : 300;
+      p.shield = true;
+      addScore(500, it.x, it.y, 'ENERGY SHIELD ON!', '#22d3ee');
+    } else if (it.kind === 'medal') {
       sound.medal();
-      addScore(pts, it.x, it.y - 10, glint ? 'SHINING +1,000!' : '+300', '#fde047');
+      state.medals++;
+      state.medalChain = Math.min(10, state.medalChain + 1);
+      const pts = state.medalChain * 200;
+      addScore(pts, it.x, it.y, `MEDAL +${pts}`, '#fde047');
     }
     updateHud();
   }
@@ -1057,146 +842,157 @@
     highScoreEl.textContent = state.highScore.toLocaleString();
     stageChipEl.textContent = `MSN ${state.stage}`;
 
-    // Lives
     livesRackEl.innerHTML = '';
-    const extraLives = Math.max(0, state.lives - 1);
-    for (let i = 0; i < extraLives; i++) {
+    const shown = Math.max(0, state.lives - 1);
+    for (let i = 0; i < shown; i++) {
       const span = document.createElement('span');
       span.className = 'life-wing';
       livesRackEl.appendChild(span);
     }
 
-    // Power Gauge
-    const lv = state.player ? state.player.power : 1;
-    powerTextEl.textContent = lv >= 5 ? 'POW MAX!' : `POW LV.${lv}`;
-    powerTextEl.classList.toggle('is-max', lv >= 5);
+    const pw = state.player ? state.player.power : 1;
+    powerTextEl.textContent = pw >= 5 ? 'POW MAX' : `POW LV.${pw}`;
+    powerTextEl.classList.toggle('is-max', pw >= 5);
 
-    const pips = powerPipsEl.children;
-    for (let i = 0; i < pips.length; i++) {
-      pips[i].className =
-        i < lv ? (lv >= 5 ? 'power-pip is-max' : 'power-pip is-filled') : 'power-pip';
-    }
+    const pips = powerPipsEl.querySelectorAll('.power-pip');
+    pips.forEach((pip, idx) => {
+      pip.classList.toggle('is-filled', idx < pw);
+      pip.classList.toggle('is-max', pw >= 5);
+    });
 
     bombCountEl.textContent = `x${state.bombs}`;
     btnHyperBomb.disabled = state.bombs <= 0 || state.mode !== 'playing';
   }
 
   /* =========================================================================
-   * 6. PLAYER WEAPON BARRAGE & ALLIED SQUADRON SUPER BOMB
+   * 5. CALIBRATED PLAYER WEAPON SYSTEM (Balanced ~24 -> ~70 DPS Curve!)
    * ========================================================================= */
+  function getDronePositions(p) {
+    if (p.power < 3) return [];
+    const bob = Math.sin(p.dronePhase * 4.5) * 4;
+    if (p.power === 3) {
+      return [{ x: p.x - 42, y: p.y + 10 + bob }];
+    }
+    return [
+      { x: p.x - 46, y: p.y + 10 + bob },
+      { x: p.x + 46, y: p.y + 10 - bob }
+    ];
+  }
+
   function fireWeapons() {
     const p = state.player;
     if (!p) return;
 
-    // 1. Primary Vulcan Stream (scales LV.1 -> LV.5)
+    // 1. Primary Vulcan Stream (Crisp visual upgrades without broken boss-melting DPS)
     if (p.mainCd <= 0) {
-      p.mainCd = p.power >= 5 ? 0.075 : 0.09;
+      p.mainCd = p.power >= 5 ? 0.095 : 0.105;
+      p.muzzleFlash = 0.045;
       sound.vulcan(p.power);
 
-      const speed = -760;
-      const dmg = state.fighterType === 'skyray' ? 1.25 : 1.0;
-      const addVulcan = (ox, oy, vx = 0) => {
+      const speed = -820;
+      const baseDmg = state.fighterType === 'skyray' ? 0.92 : 0.82;
+      const addVulcan = (ox, oy, vx = 0, dmgScale = 1.0) => {
         state.bullets.push({
-          kind: 'vulcan',
+          kind: p.power >= 5 ? 'vulcanMax' : 'vulcan',
           x: p.x + ox,
           y: p.y + oy,
           vx,
           vy: speed,
-          dmg,
+          dmg: baseDmg * dmgScale,
           pierce: false
         });
       };
 
       if (p.power === 1) {
-        addVulcan(-7, -22);
-        addVulcan(7, -22);
+        addVulcan(-8, -26, 0, 1.35);
+        addVulcan(8, -26, 0, 1.35);
       } else if (p.power === 2) {
-        addVulcan(0, -26);
-        addVulcan(-12, -18, -32);
-        addVulcan(12, -18, 32);
+        addVulcan(0, -30, 0, 1.15);
+        addVulcan(-14, -20, -36, 0.95);
+        addVulcan(14, -20, 36, 0.95);
       } else if (p.power === 3) {
-        addVulcan(-6, -26);
-        addVulcan(6, -26);
-        addVulcan(-16, -16, -55);
-        addVulcan(16, -16, 55);
+        addVulcan(-7, -30, 0, 0.95);
+        addVulcan(7, -30, 0, 0.95);
+        addVulcan(-20, -18, -58, 0.82);
+        addVulcan(20, -18, 58, 0.82);
       } else if (p.power === 4) {
-        addVulcan(0, -28);
-        addVulcan(-10, -24, -22);
-        addVulcan(10, -24, 22);
-        addVulcan(-20, -16, -78);
-        addVulcan(20, -16, 78);
+        addVulcan(0, -32, 0, 0.95);
+        addVulcan(-12, -26, -24, 0.82);
+        addVulcan(12, -26, 24, 0.82);
+        addVulcan(-24, -16, -78, 0.72);
+        addVulcan(24, -16, 78, 0.72);
       } else {
-        // LV.5 MAX OVERDRIVE 6-stream heavy vulcan
-        addVulcan(-5, -30);
-        addVulcan(5, -30);
-        addVulcan(-14, -24, -38);
-        addVulcan(14, -24, 38);
-        addVulcan(-24, -16, -98);
-        addVulcan(24, -16, 98);
+        // LV.5 MAX OVERDRIVE 6-stream plasma vulcan
+        addVulcan(-6, -34, 0, 0.88);
+        addVulcan(6, -34, 0, 0.88);
+        addVulcan(-16, -26, -38, 0.78);
+        addVulcan(16, -26, 38, 0.78);
+        addVulcan(-28, -16, -96, 0.68);
+        addVulcan(28, -16, 96, 0.68);
       }
 
-      // Autonomous Wingman Option Drones fire too!
+      // Autonomous Wingman Drones
       const drones = getDronePositions(p);
       drones.forEach((d) => {
         state.bullets.push({
-          kind: 'vulcan',
+          kind: p.power >= 5 ? 'vulcanMax' : 'vulcan',
           x: d.x,
-          y: d.y - 12,
+          y: d.y - 14,
           vx: 0,
-          vy: -740,
-          dmg: 0.85,
+          vy: -780,
+          dmg: 0.55,
           pierce: false
         });
       });
     }
 
-    // 2. Sub-Weapon System (LV.2+ : Homing Missiles / Piercing Laser / Napalm Rockets)
+    // 2. Sub-Weapon System (LV.2+)
     if (p.power >= 2 && p.subCd <= 0) {
-      const count = p.power >= 5 ? 4 : p.power >= 4 ? 2 : 2;
+      const count = p.power >= 5 ? 4 : 2;
       if (state.fighterType === 'lightning') {
-        p.subCd = p.power >= 5 ? 0.34 : 0.46;
+        p.subCd = p.power >= 5 ? 0.44 : p.power >= 4 ? 0.50 : 0.62;
         sound.missileLaunch();
-        const offsets = count === 4 ? [-26, -14, 14, 26] : [-18, 18];
+        const offsets = count === 4 ? [-30, -16, 16, 30] : [-20, 20];
         offsets.forEach((ox) => {
           state.bullets.push({
             kind: 'missile',
             x: p.x + ox,
             y: p.y - 6,
-            vx: ox * 2.4,
+            vx: ox * 2.5,
             vy: -220,
-            dmg: 2.4,
+            dmg: p.power >= 4 ? 2.1 : 1.75,
             smokeTick: 0
           });
         });
       } else if (state.fighterType === 'skyray') {
-        p.subCd = p.power >= 5 ? 0.24 : 0.32;
+        p.subCd = p.power >= 5 ? 0.30 : p.power >= 4 ? 0.36 : 0.44;
         sound.laserBeam();
-        const offsets = p.power >= 4 ? [-18, 18] : [0];
+        const offsets = p.power >= 4 ? [-20, 20] : [0];
         offsets.forEach((ox) => {
           state.bullets.push({
             kind: 'laser',
             x: p.x + ox,
-            y: p.y - 28,
+            y: p.y - 32,
             vx: 0,
-            vy: -920,
-            dmg: p.power >= 5 ? 2.6 : 1.9,
+            vy: -980,
+            dmg: p.power >= 5 ? 2.4 : 2.1,
             pierce: true,
             hitSet: new Set()
           });
         });
       } else {
-        // J7W Shinden Napalm Rockets (Explosive splash AoE on impact!)
-        p.subCd = p.power >= 5 ? 0.3 : 0.42;
+        // J7W Shinden Napalm Rockets
+        p.subCd = p.power >= 5 ? 0.42 : p.power >= 4 ? 0.48 : 0.60;
         sound.missileLaunch();
-        const offsets = count === 4 ? [-24, -11, 11, 24] : [-16, 16];
+        const offsets = count === 4 ? [-28, -14, 14, 28] : [-18, 18];
         offsets.forEach((ox) => {
           state.bullets.push({
             kind: 'rocket',
             x: p.x + ox,
             y: p.y - 10,
-            vx: ox * 0.6,
-            vy: -560,
-            dmg: 3.1,
+            vx: ox * 0.5,
+            vy: -600,
+            dmg: p.power >= 4 ? 2.3 : 1.95,
             aoe: true
           });
         });
@@ -1204,165 +1000,187 @@
     }
   }
 
-  function getDronePositions(p) {
-    if (p.power < 3) return [];
-    const bob = Math.sin(p.dronePhase * 4) * 4;
-    if (p.power === 3) {
-      return [{ x: p.x - 36, y: p.y + 8 + bob }];
-    }
-    return [
-      { x: p.x - 38, y: p.y + 8 + bob },
-      { x: p.x + 38, y: p.y + 8 - bob }
-    ];
-  }
-
   function triggerAirStrikeBomb() {
     if (state.mode !== 'playing' || state.bombs <= 0 || !state.player) return;
     state.bombs--;
-    state.player.invuln = Math.max(state.player.invuln, 2.8);
-    state.screenShake = 0.55;
-    state.flashAlpha = 0.55;
+    state.player.invuln = Math.max(state.player.invuln, 3.0);
+    state.screenShake = 0.6;
+    state.flashAlpha = 0.5;
     sound.airStrike();
-    showBanner('TACTICAL AIR STRIKE!', '아군 대형 폭격기 편대 지원 폭격!', false, 1500);
+    showBanner('B-29 CARPET BOMBING!', '아군 슈퍼포트리스 폭격 편대 전술 지원!', false, 1500);
 
-    // Convert all enemy bullets on screen into bonus points!
     if (state.enemyBullets.length > 0) {
       const cleared = state.enemyBullets.length;
-      state.enemyBullets.forEach((eb) => {
-        spawnExplosion(eb.x, eb.y, 0.35, 2);
-      });
+      state.enemyBullets.forEach((eb) => spawnExplosion(eb.x, eb.y, 0.32, 2));
       state.enemyBullets = [];
-      addScore(cleared * 50, state.player.x, state.player.y - 32, `BULLET CANCEL +${cleared * 50}!`, '#38bdf8');
+      addScore(cleared * 50, state.player.x, state.player.y - 36, `BULLET CANCEL +${cleared * 50}!`, '#38bdf8');
     }
 
-    // Spawn 3 giant B-29 bombers roaring upward
+    // Capped boss strike quota per B-29 sortie so players cannot 2-bomb skip giant bosses!
     state.airStrikeBombers.push(
-      { x: W * 0.5, y: H + 80, vy: -390, dropTick: 0 },
-      { x: W * 0.2, y: H + 150, vy: -390, dropTick: 0.08 },
-      { x: W * 0.8, y: H + 150, vy: -390, dropTick: 0.08 }
+      { x: W * 0.5, y: H + 90, vy: -380, dropTick: 0, bossQuota: 85 },
+      { x: W * 0.2, y: H + 165, vy: -380, dropTick: 0.08, bossQuota: 65 },
+      { x: W * 0.8, y: H + 165, vy: -380, dropTick: 0.08, bossQuota: 65 }
     );
     updateHud();
   }
 
   /* =========================================================================
-   * 7. ENEMY SQUADRONS & GIANT MULTI-PART STAGE BOSSES
+   * 6. PROGRESSIVE STAGE ESCALATION, MID-BOSSES & 3-PHASE GIANT BOSSES
    * ========================================================================= */
   function spawnEnemyWave() {
     if (state.bossActive) return;
 
     state.waveStep++;
     const s = state.stage;
-    const hpScale = 1 + (s - 1) * 0.28;
+    const rankBoost = state.player ? (state.player.power - 1) * 0.08 : 0;
+    const hpScale = (1 + (s - 1) * 0.48) * (1 + rankBoost);
 
-    // Spawn Stage Boss after 9 waves!
-    if (state.waveStep >= 10) {
+    // 12 intense waves per stage -> Giant Boss at step 13!
+    if (state.waveStep >= 13) {
       spawnStageBoss();
+      return;
+    }
+
+    // Wave 6: Mid-Stage Heavy Blockade Vanguard!
+    if (state.waveStep === 6) {
+      showBanner('HEAVY VANGUARD!', '적 중장갑 전폭기 & 전함 합동 저지선!', true, 1700);
+      [W * 0.26, W * 0.74].forEach((gx, idx) => {
+        state.enemies.push({
+          kind: 'gunship',
+          x: gx,
+          y: -70 - idx * 24,
+          vx: idx === 0 ? 28 : -28,
+          vy: 56 + s * 4,
+          hp: 52 * hpScale,
+          maxHp: 52 * hpScale,
+          shootCd: 0.9,
+          dropsPower: idx === 0,
+          dropsSpecial: idx === 1,
+          score: 1800
+        });
+      });
+      state.enemies.push({
+        kind: 'battleship',
+        x: W * 0.5,
+        y: -110,
+        vx: 0,
+        vy: 44,
+        hp: 65 * hpScale,
+        maxHp: 65 * hpScale,
+        shootCd: 1.0,
+        ground: true,
+        score: 2200
+      });
       return;
     }
 
     const pattern = state.waveStep % 5;
     if (pattern === 1) {
-      // V-Formation Scout Squadron
-      const cx = 70 + Math.random() * (W - 140);
-      for (let i = -2; i <= 2; i++) {
+      // Aggressive Sweeping V-Squadron (More planes in higher stages!)
+      const half = s >= 3 ? 3 : 2;
+      const cx = 75 + Math.random() * (W - 150);
+      for (let i = -half; i <= half; i++) {
         state.enemies.push({
           kind: 'scout',
-          x: cx + i * 36,
-          y: -30 - Math.abs(i) * 26,
-          vx: 0,
-          vy: 145 + s * 10,
-          hp: 2 * hpScale,
-          maxHp: 2 * hpScale,
-          shootCd: 0.8 + Math.random() * 0.8,
-          score: 150
+          x: Math.max(26, Math.min(W - 26, cx + i * 34)),
+          y: -32 - Math.abs(i) * 26,
+          vx: i * 14,
+          vy: 155 + s * 16,
+          hp: 4.2 * hpScale,
+          maxHp: 4.2 * hpScale,
+          shootCd: Math.max(0.45, 0.95 - s * 0.08) + Math.random() * 0.45,
+          score: 180
         });
       }
     } else if (pattern === 2) {
-      // Red Supply Squadron (Drops [P] Power-Up!)
+      // Crimson Elite Supply Squadron (Controlled [P] Drop — only on waveStep 2 or 7!)
       const fromLeft = Math.random() < 0.5;
+      const givePower = state.waveStep === 2 || state.waveStep === 7;
       for (let i = 0; i < 4; i++) {
         state.enemies.push({
           kind: 'supply',
-          x: fromLeft ? 45 + i * 36 : W - 45 - i * 36,
-          y: -30 - i * 34,
-          vx: fromLeft ? 38 : -38,
-          vy: 130,
-          hp: 2.5 * hpScale,
-          maxHp: 2.5 * hpScale,
-          shootCd: 1.1,
-          dropsPower: i === 2,
-          score: 250
+          x: fromLeft ? 44 + i * 38 : W - 44 - i * 38,
+          y: -34 - i * 36,
+          vx: fromLeft ? 48 : -48,
+          vy: 145 + s * 12,
+          hp: 5.5 * hpScale,
+          maxHp: 5.5 * hpScale,
+          shootCd: Math.max(0.5, 1.0 - s * 0.07),
+          dropsPower: givePower && i === 3,
+          score: 300
         });
       }
     } else if (pattern === 3) {
-      // Heavy Twin-Engine Gunship + Escorts
-      const gx = W * (0.28 + Math.random() * 0.44);
+      // Heavy Twin-Engine Gunship + Flanking Interceptors
+      const gx = W * (0.26 + Math.random() * 0.48);
       state.enemies.push({
         kind: 'gunship',
         x: gx,
-        y: -55,
-        vx: 0,
-        vy: 68,
-        hp: 22 * hpScale,
-        maxHp: 22 * hpScale,
-        shootCd: 1.0,
-        dropsPower: true,
-        score: 1200
+        y: -65,
+        vx: (Math.random() < 0.5 ? -1 : 1) * 24,
+        vy: 64 + s * 4,
+        hp: 46 * hpScale,
+        maxHp: 46 * hpScale,
+        shootCd: Math.max(0.65, 1.15 - s * 0.08),
+        dropsSpecial: Math.random() < 0.35,
+        score: 1500
       });
-      [-58, 58].forEach((ox) => {
+      [-68, -34, 34, 68].forEach((ox, idx) => {
+        if (s === 1 && (idx === 0 || idx === 3)) return;
         state.enemies.push({
           kind: 'scout',
-          x: Math.max(28, Math.min(W - 28, gx + ox)),
-          y: -30,
+          x: Math.max(26, Math.min(W - 26, gx + ox)),
+          y: -30 - (idx % 2) * 22,
           vx: 0,
-          vy: 120,
-          hp: 2 * hpScale,
-          maxHp: 2 * hpScale,
-          shootCd: 0.9,
-          score: 150
+          vy: 140 + s * 14,
+          hp: 4.0 * hpScale,
+          maxHp: 4.0 * hpScale,
+          shootCd: 0.75,
+          score: 180
         });
       });
     } else if (pattern === 4) {
-      // Naval Battleship sailing on sea + Sweeping Scouts
+      // Dreadnought Naval Warship + Pincer Dive Interceptors
       state.enemies.push({
         kind: 'battleship',
-        x: 65 + Math.random() * (W - 130),
-        y: -80,
+        x: 68 + Math.random() * (W - 136),
+        y: -95,
         vx: 0,
         vy: 46,
-        hp: 28 * hpScale,
-        maxHp: 28 * hpScale,
-        shootCd: 1.2,
+        hp: 58 * hpScale,
+        maxHp: 58 * hpScale,
+        shootCd: Math.max(0.7, 1.25 - s * 0.08),
         ground: true,
-        score: 1600
+        score: 1900
       });
-      for (let i = 0; i < 4; i++) {
+      const count = 4 + Math.min(4, s);
+      for (let i = 0; i < count; i++) {
         state.enemies.push({
           kind: 'scout',
-          x: i % 2 === 0 ? 40 : W - 40,
-          y: -25 - i * 42,
-          vx: i % 2 === 0 ? 55 : -55,
-          vy: 155,
-          hp: 2 * hpScale,
-          maxHp: 2 * hpScale,
-          shootCd: 0.75,
-          score: 150
+          x: i % 2 === 0 ? 36 : W - 36,
+          y: -28 - i * 38,
+          vx: i % 2 === 0 ? 68 : -68,
+          vy: 165 + s * 14,
+          hp: 4.2 * hpScale,
+          maxHp: 4.2 * hpScale,
+          shootCd: Math.max(0.45, 0.85 - s * 0.06),
+          score: 180
         });
       }
     } else {
-      // Dual Heavy Gunships!
-      [W * 0.28, W * 0.72].forEach((gx, idx) => {
+      // Pincer Heavy Gunships!
+      [W * 0.27, W * 0.73].forEach((gx, idx) => {
         state.enemies.push({
           kind: 'gunship',
           x: gx,
-          y: -60 - idx * 35,
-          vx: 0,
-          vy: 64,
-          hp: 20 * hpScale,
-          maxHp: 20 * hpScale,
-          shootCd: 1.1,
-          dropsSpecial: idx === 1,
-          score: 1200
+          y: -65 - idx * 36,
+          vx: idx === 0 ? 22 : -22,
+          vy: 60 + s * 4,
+          hp: 44 * hpScale,
+          maxHp: 44 * hpScale,
+          shootCd: Math.max(0.65, 1.15 - s * 0.08),
+          score: 1500
         });
       });
     }
@@ -1371,29 +1189,50 @@
   function spawnStageBoss() {
     state.bossActive = true;
     sound.warningSiren();
-    const bossNames = ['XB-0 IRON VALKYRIE', 'YAMATO-X SKY DREADNOUGHT', 'GIGA LEVIATHAN'];
-    const bName = bossNames[(state.stage - 1) % bossNames.length];
-    showBanner('🚨 WARNING 🚨', `거대 결전 병기 [${bName}] 접근 중!`, true, 2600);
 
-    const coreHp = 190 + (state.stage - 1) * 95;
-    const turretHp = 55 + (state.stage - 1) * 28;
+    const bossIdx = (state.stage - 1) % 3;
+    const bossDef = HD.bosses[bossIdx] || {
+      name: 'XB-0 IRON VALKYRIE',
+      w: 276,
+      h: 130,
+      turretOffsetX: 74,
+      turretOffsetY: 8
+    };
+    const mkSuffix = state.stage > 3 ? ` MK.${Math.ceil(state.stage / 3)}` : '';
+    const fullName = `${bossDef.name}${mkSuffix}`;
+
+    showBanner('🚨 WARNING 🚨', `초거대 결전 요새 [${fullName}] 출현!`, true, 2700);
+
+    // Dynamic Strikers 1945 Rank + Progressive Stage Scaling!
+    // Even at LV.5 MAX (~70 DPS), Stage 1 takes ~40s, Stage 2 ~52s, Stage 3+ ~65s+!
+    const pwr = state.player ? state.player.power : 1;
+    const coreHp = Math.round((1550 + (state.stage - 1) * 980) + (pwr - 1) * 210);
+    const turretHp = Math.round(440 + (state.stage - 1) * 280 + (pwr - 1) * 45);
 
     state.boss = {
-      name: bName,
+      bossIdx,
+      name: fullName,
+      w: bossDef.w,
+      h: bossDef.h,
+      txOff: bossDef.turretOffsetX,
+      tyOff: bossDef.turretOffsetY,
       x: W / 2,
-      y: -90,
-      targetY: 112,
-      vx: 62,
+      y: -120,
+      targetY: 122,
+      vx: 64 + state.stage * 8,
       hp: coreHp,
       maxHp: coreHp,
       leftTurretHp: turretHp,
+      maxTurretHp: turretHp,
       rightTurretHp: turretHp,
-      phase2: false,
-      patternTimer: 1.4,
-      patternStep: 0
+      phase: 1, // 1 -> 2 (at 65%) -> 3 (at 30% FINAL OVERDRIVE!)
+      patternTimer: 1.3,
+      spiralAngle: 0,
+      hitFlash: 0,
+      smokeTimer: 0
     };
 
-    bossNameEl.textContent = `WARNING // ${bName}`;
+    bossNameEl.textContent = `WARNING // ${fullName}`;
     bossHpPctEl.textContent = '100%';
     bossHpFillEl.style.width = '100%';
     bossHudEl.classList.add('is-active');
@@ -1401,19 +1240,33 @@
 
   function damageEnemy(en, dmg) {
     en.hp -= dmg;
-    en.hitFlash = 0.06;
+    en.hitFlash = 0.055;
     if (en.hp <= 0 && !en.dead) {
       en.dead = true;
       const isHeavy = en.kind === 'gunship' || en.kind === 'battleship';
-      spawnExplosion(en.x, en.y, isHeavy ? 1.35 : 0.82, isHeavy ? 16 : 8);
+      spawnExplosion(en.x, en.y, isHeavy ? 1.55 : 0.85, isHeavy ? 18 : 8, isHeavy);
+
       if (isHeavy) {
         sound.explodeBig();
-        state.screenShake = Math.max(state.screenShake, 0.16);
-        spawnItem(en.x - 12, en.y, 'medal');
-        spawnItem(en.x + 12, en.y + 8, 'medal');
+        state.screenShake = Math.max(state.screenShake, 0.2);
+        spawnItem(en.x - 14, en.y, 'medal');
+        spawnItem(en.x + 14, en.y + 8, 'medal');
       } else {
         sound.explodeSmall();
-        if (Math.random() < 0.28) spawnItem(en.x, en.y, 'medal');
+        if (Math.random() < 0.25) spawnItem(en.x, en.y, 'medal');
+
+        // Stage 3+ Elite Revenge Bullet on red supply / high-stage interceptors!
+        if (state.stage >= 3 && state.player && Math.random() < 0.28 && en.y < H * 0.65) {
+          const aim = Math.atan2(state.player.y - en.y, state.player.x - en.x);
+          const spd = 210 + state.stage * 15;
+          state.enemyBullets.push({
+            x: en.x,
+            y: en.y,
+            vx: Math.cos(aim) * spd,
+            vy: Math.sin(aim) * spd,
+            kind: 'amber'
+          });
+        }
       }
 
       if (en.dropsPower) {
@@ -1425,81 +1278,130 @@
     }
   }
 
-  function damageBoss(dmg, hitX, hitY) {
+  function damageBoss(dmg, hitX, hitY, ignoreArmor = false) {
     const b = state.boss;
     if (!b) return;
+    b.hitFlash = 0.045;
 
-    // Check Left / Right Wing Turret hitboxes first!
-    if (b.leftTurretHp > 0 && Math.abs(hitX - (b.x - 68)) < 28 && Math.abs(hitY - (b.y + 12)) < 28) {
+    const lx = b.x - b.txOff;
+    const rx = b.x + b.txOff;
+    const ty = b.y + b.tyOff;
+
+    // 1. Check Destructible Left & Right Heavy Wing Turrets first!
+    if (b.leftTurretHp > 0 && Math.abs(hitX - lx) < 34 && Math.abs(hitY - ty) < 38) {
       b.leftTurretHp -= dmg;
       if (b.leftTurretHp <= 0) {
-        spawnExplosion(b.x - 68, b.y + 12, 1.5, 18);
+        spawnExplosion(lx, ty, 1.8, 24, true);
         sound.explodeBig();
-        spawnItem(b.x - 68, b.y + 12, 'medal');
-        spawnItem(b.x - 54, b.y + 18, 'P');
-        addScore(1500, b.x - 68, b.y, 'LEFT TURRET DESTROYED!', '#38bdf8');
+        state.screenShake = 0.35;
+        spawnItem(lx, ty, 'medal');
+        addScore(3000, lx, ty, 'LEFT CANNON DESTROYED!', '#38bdf8');
       }
       return;
     }
 
-    if (b.rightTurretHp > 0 && Math.abs(hitX - (b.x + 68)) < 28 && Math.abs(hitY - (b.y + 12)) < 28) {
+    if (b.rightTurretHp > 0 && Math.abs(hitX - rx) < 34 && Math.abs(hitY - ty) < 38) {
       b.rightTurretHp -= dmg;
       if (b.rightTurretHp <= 0) {
-        spawnExplosion(b.x + 68, b.y + 12, 1.5, 18);
+        spawnExplosion(rx, ty, 1.8, 24, true);
         sound.explodeBig();
-        spawnItem(b.x + 68, b.y + 12, 'medal');
-        spawnItem(b.x + 54, b.y + 18, 'S');
-        addScore(1500, b.x + 68, b.y, 'RIGHT TURRET DESTROYED!', '#38bdf8');
+        state.screenShake = 0.35;
+        spawnItem(rx, ty, 'medal');
+        if (Math.random() < 0.65) spawnItem(rx, ty + 14, 'S');
+        addScore(3000, rx, ty, 'RIGHT CANNON DESTROYED!', '#38bdf8');
       }
       return;
     }
 
-    b.hp -= dmg;
+    // 2. Armored Core Reduction while Wing Turrets remain operational!
+    let effectiveDmg = dmg;
+    if (!ignoreArmor && (b.leftTurretHp > 0 || b.rightTurretHp > 0)) {
+      const armorRatio = b.leftTurretHp > 0 && b.rightTurretHp > 0 ? 0.52 : 0.76;
+      effectiveDmg = dmg * armorRatio;
+      sound.armorClink();
+    }
+
+    b.hp -= effectiveDmg;
     const pct = Math.max(0, Math.ceil((b.hp / b.maxHp) * 100));
     bossHpPctEl.textContent = `${pct}%`;
     bossHpFillEl.style.width = `${pct}%`;
 
-    if (!b.phase2 && b.hp <= b.maxHp * 0.45) {
-      b.phase2 = true;
-      spawnExplosion(b.x, b.y, 1.8, 22);
+    // Phase 2 Transition at 65% HP!
+    if (b.phase === 1 && b.hp <= b.maxHp * 0.65) {
+      b.phase = 2;
+      b.patternTimer = 0.6;
+      state.screenShake = 0.42;
+      spawnExplosion(b.x - 32, b.y, 1.5, 18, true);
+      spawnExplosion(b.x + 32, b.y, 1.5, 18, false);
       sound.explodeBig();
-      showBanner('CORE OVERLOAD!', '보스 2페이즈 코어 개방 — 탄막 주의!', true, 1600);
+      // Clear immediate bullets briefly for fair phase transition!
+      state.enemyBullets = [];
+      showBanner('ARMOR SHATTERED!', '보스 2페이즈 돌입 — 회전 나선 탄막 개방!', true, 1650);
     }
 
+    // Phase 3 Transition at 30% HP (FINAL CORE MELTDOWN!)
+    if (b.phase === 2 && b.hp <= b.maxHp * 0.30) {
+      b.phase = 3;
+      b.patternTimer = 0.5;
+      state.screenShake = 0.52;
+      state.flashAlpha = 0.35;
+      spawnExplosion(b.x, b.y + 10, 2.0, 26, true);
+      sound.explodeBig();
+      state.enemyBullets = [];
+      showBanner('CRITICAL OVERDRIVE!', '최종 3페이즈 발악 패턴 — 총력 회피!', true, 1750);
+    }
+
+    // Boss Defeated!
     if (b.hp <= 0) {
-      // Boss Defeated!
       const bx = b.x;
       const by = b.y;
+      const clearedStage = state.stage;
       state.boss = null;
       state.bossActive = false;
       bossHudEl.classList.remove('is-active');
       state.enemyBullets = [];
-      state.screenShake = 0.65;
-      state.flashAlpha = 0.6;
+      state.screenShake = 0.85;
+      state.flashAlpha = 0.7;
       sound.explodeBig();
+      spawnExplosion(bx, by, 2.4, 34, true);
 
-      for (let k = 0; k < 6; k++) {
+      for (let k = 1; k <= 8; k++) {
         setTimeout(() => {
-          spawnExplosion(bx + (Math.random() - 0.5) * 140, by + (Math.random() - 0.5) * 60, 1.6, 14);
+          spawnExplosion(
+            bx + (Math.random() - 0.5) * 180,
+            by + (Math.random() - 0.5) * 90,
+            1.5 + Math.random() * 0.7,
+            14,
+            k % 3 === 0
+          );
           sound.explodeSmall();
-        }, k * 120);
+        }, k * 125);
       }
 
-      for (let m = 0; m < 5; m++) {
-        spawnItem(bx + (m - 2) * 24, by, 'medal');
+      for (let m = 0; m < 6; m++) {
+        spawnItem(bx + (m - 2.5) * 24, by, 'medal');
       }
-      spawnItem(bx, by + 16, 'B');
-      addScore(10000 * state.stage, bx, by, `MISSION ${state.stage} CLEAR! +${(10000 * state.stage).toLocaleString()}`, '#fde047');
+      spawnItem(bx - 22, by + 18, 'P');
+      spawnItem(bx + 22, by + 18, 'B');
+
+      const clearBonus = 15000 * clearedStage;
+      addScore(clearBonus, bx, by, `MISSION ${clearedStage} CLEAR! +${clearBonus.toLocaleString()}`, '#fde047');
 
       state.stage++;
       state.waveStep = 0;
-      state.waveTimer = 3.2;
+      state.waveTimer = 3.6;
       updateHud();
+
+      const nextBiomes = [
+        '남태평양 산호초 요새 해역 진입!',
+        '강철 협곡 해군 공창 요새 돌입 — 대공망 강화!',
+        '심야 적색 폭풍 함대 결전 해역 진입!'
+      ];
       setTimeout(() => {
         if (state.mode === 'playing') {
-          showBanner(`MISSION ${state.stage}`, '새로운 적 주력 함대 해역 진입!', false, 2200);
+          showBanner(`MISSION ${state.stage}`, nextBiomes[(state.stage - 1) % 3], false, 2500);
         }
-      }, 1700);
+      }, 1900);
     }
   }
 
@@ -1507,20 +1409,22 @@
     const p = state.player;
     if (!p || p.invuln > 0) return;
 
+    state.medalChain = 0;
+
     if (p.shield) {
       p.shield = false;
-      p.invuln = 1.8;
-      spawnExplosion(p.x, p.y, 1.1, 14);
+      p.invuln = 2.0;
+      spawnExplosion(p.x, p.y, 1.15, 16, true);
       sound.explodeSmall();
-      addPopup(p.x, p.y - 24, 'SHIELD GUARD!', '#22d3ee');
+      addPopup(p.x, p.y - 26, 'SHIELD GUARD!', '#22d3ee');
       updateHud();
       return;
     }
 
     state.lives--;
-    state.screenShake = 0.45;
-    state.flashAlpha = 0.35;
-    spawnExplosion(p.x, p.y, 1.8, 26);
+    state.screenShake = 0.5;
+    state.flashAlpha = 0.4;
+    spawnExplosion(p.x, p.y, 1.9, 28, true);
     sound.explodeBig();
 
     if (state.lives <= 0) {
@@ -1532,39 +1436,40 @@
       finalMedalsEl.textContent = String(state.medals);
       gameoverMsgEl.textContent =
         state.score >= state.highScore && state.score > 0
-          ? '🏆 최고 기록 경신! 전설적인 1945 스카이 에이스입니다!'
-          : '멋진 출격이었습니다! 기체를 바꿔 다시 도전해 보세요!';
+          ? '🏆 최고 기록 달성! 전설적인 1945 스카이 에이스입니다!'
+          : '치열한 탄막 공중전이었습니다! 기체를 재정비해 다시 출격하세요!';
       setTimeout(() => {
         if (state.mode === 'gameover') gameoverScreenEl.hidden = false;
-      }, 700);
+      }, 800);
     } else {
-      // Drop a recovery [P] item and keep (power - 1) so player stays strong!
+      // Authentic arcade stakes: drop 2 power levels on death & eject 1 recovery [P] capsule!
       if (p.power > 1) {
-        p.power = Math.max(1, p.power - 1);
+        p.power = Math.max(1, p.power - 2);
         spawnItem(W / 2, H * 0.42, 'P');
       }
       p.x = W / 2;
-      p.y = H - 72;
-      p.invuln = 2.8;
+      p.y = H - 76;
+      p.invuln = 3.0;
       updateHud();
     }
   }
 
   /* =========================================================================
-   * 8. INPUT HANDLERS (Full 360° Touch Slide + 8-Way Keyboard)
+   * 7. FULL 2D (360° OMNI-DIRECTIONAL) TOUCH SLIDE & KEYBOARD CONTROLS
    * ========================================================================= */
   const keys = { left: false, right: false, up: false, down: false, shoot: false };
   const pointer = { active: false, id: null, lastX: 0, lastY: 0 };
 
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keys.left = true; if (state.mode === 'playing') e.preventDefault(); }
-    if (e.code === 'ArrowRight' || e.code === 'KeyD') { keys.right = true; if (state.mode === 'playing') e.preventDefault(); }
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') { keys.up = true; if (state.mode === 'playing') e.preventDefault(); }
-    if (e.code === 'ArrowDown' || e.code === 'KeyS') { keys.down = true; if (state.mode === 'playing') e.preventDefault(); }
-    if (e.code === 'Space') { keys.shoot = true; if (state.mode === 'playing') e.preventDefault(); }
-    if ((e.code === 'KeyB' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') && state.mode === 'playing') {
-      triggerAirStrikeBomb();
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') keys.down = true;
+    if (e.code === 'Space') {
+      keys.shoot = true;
+      sound.unlock();
     }
+    if (e.code === 'KeyB' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') triggerAirStrikeBomb();
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (state.mode === 'playing') pauseGame();
       else if (state.mode === 'paused') resumeGame();
@@ -1582,29 +1487,27 @@
   canvas.addEventListener('pointerdown', (e) => {
     sound.unlock();
     if (state.mode !== 'playing') return;
-    canvas.setPointerCapture(e.pointerId);
     pointer.active = true;
     pointer.id = e.pointerId;
     pointer.lastX = e.clientX;
     pointer.lastY = e.clientY;
-    if (!state.autoFire) fireWeapons();
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch (_) {}
   });
 
   canvas.addEventListener('pointermove', (e) => {
-    if (!pointer.active || e.pointerId !== pointer.id || state.mode !== 'playing') return;
-    const sensitivity = state.fighterType === 'shinden' ? 1.38 : 1.25;
-    const dx = (e.clientX - pointer.lastX) * sensitivity;
-    const dy = (e.clientY - pointer.lastY) * sensitivity;
+    if (!pointer.active || e.pointerId !== pointer.id || state.mode !== 'playing' || !state.player) return;
+    const dx = e.clientX - pointer.lastX;
+    const dy = e.clientY - pointer.lastY;
     pointer.lastX = e.clientX;
     pointer.lastY = e.clientY;
 
-    const p = state.player;
-    if (p) {
-      p.x = Math.max(24, Math.min(W - 24, p.x + dx));
-      p.y = Math.max(54, Math.min(H - 36, p.y + dy));
-      p.bank = Math.max(-1, Math.min(1, dx * 0.14));
-      p.thrust = dy < -0.5 ? 1 : dy > 0.5 ? -1 : 0;
-    }
+    const sens = 1.24;
+    state.player.x = Math.max(26, Math.min(W - 26, state.player.x + dx * sens));
+    state.player.y = Math.max(58, Math.min(H - 38, state.player.y + dy * sens));
+    state.player.bank = Math.max(-1, Math.min(1, dx * 0.16));
+    state.player.thrust = dy < -0.5 ? 1 : dy > 0.5 ? -1 : 0;
   });
 
   function stopPointer(e) {
@@ -1643,19 +1546,21 @@
     resizeCanvas();
     state.score = 0;
     state.medals = 0;
+    state.medalChain = 0;
     state.stage = 1;
     state.waveStep = 0;
-    state.waveTimer = 1.1;
+    state.waveTimer = 1.0;
     state.bossActive = false;
     state.boss = null;
     state.lives = 3;
     state.bombs = 2;
-    state.nextLifeScore = 50000;
+    state.nextLifeScore = 60000;
     state.bullets = [];
     state.enemyBullets = [];
     state.enemies = [];
     state.items = [];
     state.explosions = [];
+    state.shockwaves = [];
     state.sparks = [];
     state.popups = [];
     state.airStrikeBombers = [];
@@ -1666,9 +1571,10 @@
     startScreenEl.hidden = true;
     pauseScreenEl.hidden = true;
     gameoverScreenEl.hidden = true;
+    installModalEl.hidden = true;
 
     updateHud();
-    showBanner('MISSION 1', '남태평양 해상 전선 돌파 — 아이템 [P]로 기체를 진화시키세요!');
+    showBanner('MISSION 1', '남태평양 산호초 요새 돌파 — 적 보급편대의 [P]를 탈취하라!');
   }
 
   function openHangar() {
@@ -1695,14 +1601,20 @@
     updateHud();
   }
 
-  btnStartGame.addEventListener('click', () => { sound.unlock(); startNewGame(); });
-  btnRetryGame.addEventListener('click', () => { sound.unlock(); startNewGame(); });
+  btnStartGame.addEventListener('click', () => {
+    sound.unlock();
+    startNewGame();
+  });
+  btnRetryGame.addEventListener('click', () => {
+    sound.unlock();
+    startNewGame();
+  });
   btnBackHangar.addEventListener('click', () => openHangar());
   btnRestartPause.addEventListener('click', () => openHangar());
   btnResumeGame.addEventListener('click', () => resumeGame());
 
   /* =========================================================================
-   * 9. MAIN UPDATE LOOP
+   * 8. MAIN UPDATE LOOP
    * ========================================================================= */
   function findNearestTarget(x, y) {
     let best = null;
@@ -1716,35 +1628,37 @@
       }
     }
     if (state.boss) {
-      const bd = Math.hypot(state.boss.x - x, state.boss.y - y);
-      if (bd < bestDist) best = state.boss;
+      const bs = state.boss;
+      // Target live wing turrets first if closer!
+      const pts = [{ x: bs.x, y: bs.y }];
+      if (bs.leftTurretHp > 0) pts.push({ x: bs.x - bs.txOff, y: bs.y + bs.tyOff });
+      if (bs.rightTurretHp > 0) pts.push({ x: bs.x + bs.txOff, y: bs.y + bs.tyOff });
+      pts.forEach((pt) => {
+        const bd = Math.hypot(pt.x - x, pt.y - y);
+        if (bd < bestDist) {
+          bestDist = bd;
+          best = pt;
+        }
+      });
     }
     return best;
   }
 
   function update(dt) {
-    // Scroll Ocean, Islands & Clouds continuously
-    state.oceanScroll = (state.oceanScroll + 92 * dt) % 256;
-    state.islands.forEach((isl) => {
-      isl.y += 42 * dt;
-      if (isl.y > H + 110) {
-        isl.y = -120;
-        isl.x = 50 + Math.random() * (W - 100);
-        isl.scale = 0.75 + Math.random() * 0.45;
-      }
-    });
+    // Scroll HD Aerial Terrain Map continuously
+    state.terrainScroll += 78 * dt;
     state.clouds.forEach((cl) => {
       cl.y += cl.speed * dt;
-      if (cl.y > H + 90) {
-        cl.y = -90;
+      if (cl.y > H + 110) {
+        cl.y = -110;
         cl.x = Math.random() * W;
       }
     });
 
     if (state.mode !== 'playing') return;
 
-    if (state.screenShake > 0) state.screenShake = Math.max(0, state.screenShake - dt);
-    if (state.flashAlpha > 0) state.flashAlpha = Math.max(0, state.flashAlpha - dt * 1.8);
+    if (state.screenShake > 0) state.screenShake = Math.max(0, state.screenShake - dt * 1.3);
+    if (state.flashAlpha > 0) state.flashAlpha = Math.max(0, state.flashAlpha - dt * 1.9);
 
     const p = state.player;
     if (p) {
@@ -1752,14 +1666,15 @@
       if (p.invuln > 0) p.invuln = Math.max(0, p.invuln - dt);
       if (p.mainCd > 0) p.mainCd -= dt;
       if (p.subCd > 0) p.subCd -= dt;
+      if (p.muzzleFlash > 0) p.muzzleFlash = Math.max(0, p.muzzleFlash - dt);
 
       const mx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       const my = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
       if (mx !== 0 || my !== 0) {
         const len = Math.hypot(mx, my) || 1;
-        const baseSpd = state.fighterType === 'shinden' ? 360 : 315;
-        p.x = Math.max(24, Math.min(W - 24, p.x + (mx / len) * baseSpd * dt));
-        p.y = Math.max(54, Math.min(H - 36, p.y + (my / len) * baseSpd * dt));
+        const baseSpd = state.fighterType === 'shinden' ? 365 : 320;
+        p.x = Math.max(26, Math.min(W - 26, p.x + (mx / len) * baseSpd * dt));
+        p.y = Math.max(58, Math.min(H - 38, p.y + (my / len) * baseSpd * dt));
         p.bank += (mx - p.bank) * Math.min(1, 12 * dt);
         p.thrust = my < 0 ? 1 : my > 0 ? -1 : 0;
       } else if (!pointer.active) {
@@ -1778,14 +1693,17 @@
       bm.y += bm.vy * dt;
       bm.dropTick -= dt;
       if (bm.dropTick <= 0 && bm.y > 0 && bm.y < H) {
-        bm.dropTick = 0.09;
-        spawnExplosion(bm.x + (Math.random() - 0.5) * 90, bm.y - 40, 1.2, 4);
+        bm.dropTick = 0.095;
+        spawnExplosion(bm.x + (Math.random() - 0.5) * 95, bm.y - 45, 1.25, 5);
         state.enemyBullets = [];
-        // Damage nearby enemies & boss
-        state.enemies.forEach((en) => damageEnemy(en, 4.5));
-        if (state.boss) damageBoss(5.5, state.boss.x, state.boss.y);
+        state.enemies.forEach((en) => damageEnemy(en, 8.5));
+        if (state.boss && bm.bossQuota > 0) {
+          const strike = Math.min(bm.bossQuota, 12);
+          bm.bossQuota -= strike;
+          damageBoss(strike, state.boss.x, state.boss.y, true);
+        }
       }
-      if (bm.y < -130) state.airStrikeBombers.splice(i, 1);
+      if (bm.y < -160) state.airStrikeBombers.splice(i, 1);
     }
 
     // Wave Spawner
@@ -1793,11 +1711,11 @@
       state.waveTimer -= dt;
       if (state.waveTimer <= 0) {
         spawnEnemyWave();
-        state.waveTimer = Math.max(1.85, 2.75 - state.stage * 0.12);
+        state.waveTimer = Math.max(1.55, 2.55 - state.stage * 0.14);
       }
     }
 
-    // Player Projectiles (Vulcan, Homing Missiles, Piercing Lasers, Napalm Rockets)
+    // Player Projectiles
     for (let i = state.bullets.length - 1; i >= 0; i--) {
       const b = state.bullets[i];
 
@@ -1809,24 +1727,32 @@
           let diff = desired - cur;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
-          const nextAng = cur + Math.max(-5.5 * dt, Math.min(5.5 * dt, diff));
-          const spd = 480;
+          const nextAng = cur + Math.max(-6.0 * dt, Math.min(6.0 * dt, diff));
+          const spd = 510;
           b.vx = Math.cos(nextAng) * spd;
           b.vy = Math.sin(nextAng) * spd;
         } else {
-          b.vy = Math.max(-520, b.vy - 600 * dt);
+          b.vy = Math.max(-540, b.vy - 620 * dt);
         }
         b.smokeTick -= dt;
-        if (b.smokeTick <= 0 && state.sparks.length < 75) {
-          b.smokeTick = 0.035;
-          state.sparks.push({ x: b.x, y: b.y + 8, vx: 0, vy: 30, color: 'rgba(226,232,240,0.55)', life: 0.18 });
+        if (b.smokeTick <= 0 && state.sparks.length < 95) {
+          b.smokeTick = 0.038;
+          state.sparks.push({
+            x: b.x,
+            y: b.y + 8,
+            vx: (Math.random() - 0.5) * 14,
+            vy: 35,
+            color: 'rgba(226, 232, 240, 0.55)',
+            size: 2.2,
+            life: 0.19
+          });
         }
       }
 
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      if (b.y < -50 || b.y > H + 40 || b.x < -40 || b.x > W + 40) {
+      if (b.y < -60 || b.y > H + 40 || b.x < -40 || b.x > W + 40) {
         state.bullets.splice(i, 1);
         continue;
       }
@@ -1836,7 +1762,7 @@
       // Hit Enemies
       for (let ei = state.enemies.length - 1; ei >= 0; ei--) {
         const en = state.enemies[ei];
-        const hitR = en.kind === 'gunship' ? 36 : en.kind === 'battleship' ? 28 : 21;
+        const hitR = en.kind === 'gunship' ? 42 : en.kind === 'battleship' ? 28 : 23;
         if (Math.abs(b.x - en.x) < hitR && Math.abs(b.y - en.y) < hitR) {
           if (b.pierce) {
             if (b.hitSet.has(en)) continue;
@@ -1845,7 +1771,9 @@
           if (b.aoe) {
             spawnExplosion(b.x, b.y, 1.05, 8);
             state.enemies.forEach((other) => {
-              if (Math.hypot(other.x - b.x, other.y - b.y) < 64) damageEnemy(other, b.dmg * 0.65);
+              if (other !== en && Math.hypot(other.x - b.x, other.y - b.y) < 68) {
+                damageEnemy(other, b.dmg * 0.6);
+              }
             });
           }
           damageEnemy(en, b.dmg);
@@ -1856,25 +1784,23 @@
         }
       }
 
-      // Hit Boss
+      // Hit Giant Boss
       if (!consumed && state.boss) {
         const bs = state.boss;
-        if (Math.abs(b.x - bs.x) < 98 && Math.abs(b.y - bs.y) < 46) {
+        if (Math.abs(b.x - bs.x) < bs.w * 0.44 && Math.abs(b.y - bs.y) < bs.h * 0.36) {
           if (!b.pierce || !b.hitSet.has(bs)) {
             if (b.pierce) b.hitSet.add(bs);
-            if (b.aoe) spawnExplosion(b.x, b.y, 0.95, 6);
+            if (b.aoe) spawnExplosion(b.x, b.y, 0.9, 6);
             damageBoss(b.dmg, b.x, b.y);
             if (!b.pierce) consumed = true;
           }
         }
       }
 
-      if (consumed) {
-        state.bullets.splice(i, 1);
-      }
+      if (consumed) state.bullets.splice(i, 1);
     }
 
-    // Update Enemies
+    // Enemies Update & Stage-Scaled Bullet Patterns
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const en = state.enemies[i];
       if (en.dead) {
@@ -1885,119 +1811,219 @@
 
       en.x += en.vx * dt;
       en.y += en.vy * dt;
-      if ((en.x < 26 && en.vx < 0) || (en.x > W - 26 && en.vx > 0)) en.vx *= -1;
+      if ((en.x < 28 && en.vx < 0) || (en.x > W - 28 && en.vx > 0)) en.vx *= -1;
 
-      if (en.y > H + 90) {
+      if (en.y > H + 120) {
         state.enemies.splice(i, 1);
         continue;
       }
 
-      // Enemy Fire
+      // Damaged smoke trail on heavy gunships/battleships
+      if ((en.kind === 'gunship' || en.kind === 'battleship') && en.hp < en.maxHp * 0.5 && Math.random() < 18 * dt) {
+        state.sparks.push({
+          x: en.x + (Math.random() - 0.5) * 24,
+          y: en.y - 6,
+          vx: (Math.random() - 0.5) * 18,
+          vy: -36,
+          color: 'rgba(148, 163, 184, 0.45)',
+          size: 3.5,
+          life: 0.35
+        });
+      }
+
+      // Progressive Enemy Fire!
       en.shootCd -= dt;
-      if (en.shootCd <= 0 && en.y > 24 && en.y < H - 140 && p) {
+      if (en.shootCd <= 0 && en.y > 22 && en.y < H - 135 && p) {
         const aim = Math.atan2(p.y - en.y, p.x - en.x);
-        const spd = 195 + Math.min(95, state.stage * 14);
+        const spd = Math.min(350, 205 + (state.stage - 1) * 24);
+
         if (en.kind === 'gunship') {
-          en.shootCd = 1.65;
-          [-0.22, 0, 0.22].forEach((off) => {
+          en.shootCd = Math.max(0.95, 1.55 - state.stage * 0.09);
+          const spread = state.stage >= 3 ? [-0.36, -0.18, 0, 0.18, 0.36] : [-0.24, 0, 0.24];
+          spread.forEach((off, idx) => {
             state.enemyBullets.push({
               x: en.x,
-              y: en.y + 22,
+              y: en.y + 28,
               vx: Math.cos(aim + off) * spd,
               vy: Math.sin(aim + off) * spd,
-              amber: true
+              kind: idx % 2 === 0 ? 'amber' : 'red'
             });
           });
         } else if (en.kind === 'battleship') {
-          en.shootCd = 1.85;
-          [-0.16, 0.16].forEach((off) => {
+          en.shootCd = Math.max(1.05, 1.65 - state.stage * 0.08);
+          const count = state.stage >= 2 ? 4 : 2;
+          for (let k = 0; k < count; k++) {
+            const off = (k - (count - 1) / 2) * 0.22;
             state.enemyBullets.push({
               x: en.x,
-              y: en.y + 10,
-              vx: Math.cos(aim + off) * spd,
-              vy: Math.sin(aim + off) * spd,
-              amber: false
+              y: en.y + 16,
+              vx: Math.cos(aim + off) * (spd * 0.94),
+              vy: Math.sin(aim + off) * (spd * 0.94),
+              kind: 'amber'
             });
-          });
+          }
         } else {
-          en.shootCd = 1.9 + Math.random();
-          state.enemyBullets.push({
-            x: en.x,
-            y: en.y + 14,
-            vx: Math.cos(aim) * spd,
-            vy: Math.sin(aim) * spd,
-            amber: false
-          });
+          en.shootCd = Math.max(1.05, 1.85 - state.stage * 0.12) + Math.random() * 0.5;
+          if (state.stage >= 2 && en.kind === 'supply') {
+            [-0.14, 0.14].forEach((off) => {
+              state.enemyBullets.push({
+                x: en.x,
+                y: en.y + 18,
+                vx: Math.cos(aim + off) * spd,
+                vy: Math.sin(aim + off) * spd,
+                kind: 'red'
+              });
+            });
+          } else {
+            state.enemyBullets.push({
+              x: en.x,
+              y: en.y + 18,
+              vx: Math.cos(aim) * spd,
+              vy: Math.sin(aim) * spd,
+              kind: 'red'
+            });
+          }
         }
       }
 
-      // Air-to-Air Collision (Ground battleships don't collide with aircraft!)
+      // Air-to-air collision
       if (!en.ground && p && p.invuln <= 0) {
         if (Math.abs(en.x - p.x) < 24 && Math.abs(en.y - p.y) < 24) {
-          damageEnemy(en, 10);
+          damageEnemy(en, 18);
           hitPlayer();
         }
       }
     }
 
-    // Update Giant Boss
+    // Giant 3-Phase Boss Update & Bullet-Hell Patterns!
     if (state.boss) {
       const bs = state.boss;
+      if (bs.hitFlash > 0) bs.hitFlash -= dt;
+
       if (bs.y < bs.targetY) {
-        bs.y += 75 * dt;
+        bs.y += 82 * dt;
       } else {
-        bs.x += bs.vx * dt;
-        if (bs.x < 95 || bs.x > W - 95) bs.vx *= -1;
+        const spdMult = bs.phase === 3 ? 1.35 : bs.phase === 2 ? 1.15 : 1.0;
+        bs.x += bs.vx * spdMult * dt;
+        const margin = Math.min(115, W * 0.28);
+        if ((bs.x < margin && bs.vx < 0) || (bs.x > W - margin && bs.vx > 0)) bs.vx *= -1;
+      }
+
+      // Smoke & fire sparks in Phase 2 / 3
+      if (bs.phase >= 2) {
+        bs.smokeTimer -= dt;
+        if (bs.smokeTimer <= 0) {
+          bs.smokeTimer = bs.phase === 3 ? 0.06 : 0.12;
+          state.sparks.push({
+            x: bs.x + (Math.random() - 0.5) * 90,
+            y: bs.y + (Math.random() - 0.5) * 35,
+            vx: (Math.random() - 0.5) * 30,
+            vy: -45,
+            color: bs.phase === 3 ? '#fb923c' : 'rgba(148,163,184,0.55)',
+            size: 4,
+            life: 0.42
+          });
+        }
       }
 
       bs.patternTimer -= dt;
-      if (bs.patternTimer <= 0 && p) {
-        bs.patternStep++;
-        const spd = bs.phase2 ? 235 : 195;
+      if (bs.patternTimer <= 0 && p && bs.y >= bs.targetY - 15) {
+        const baseSpd = Math.min(340, 200 + (state.stage - 1) * 22 + (bs.phase - 1) * 26);
 
-        // Left & Right Turret Aimed Shots
-        if (bs.leftTurretHp > 0) {
-          const aL = Math.atan2(p.y - (bs.y + 16), p.x - (bs.x - 68));
-          state.enemyBullets.push({ x: bs.x - 68, y: bs.y + 22, vx: Math.cos(aL) * spd, vy: Math.sin(aL) * spd, amber: true });
-        }
-        if (bs.rightTurretHp > 0) {
-          const aR = Math.atan2(p.y - (bs.y + 16), p.x - (bs.x + 68));
-          state.enemyBullets.push({ x: bs.x + 68, y: bs.y + 22, vx: Math.cos(aR) * spd, vy: Math.sin(aR) * spd, amber: true });
-        }
-
-        // Core Fan / Radial Barrage
-        const fanCount = bs.phase2 ? 9 : 5;
-        const spread = bs.phase2 ? 1.35 : 0.9;
-        const baseA = Math.atan2(p.y - bs.y, p.x - bs.x);
-        for (let k = 0; k < fanCount; k++) {
-          const ang = baseA - spread / 2 + (spread * k) / (fanCount - 1);
-          state.enemyBullets.push({
-            x: bs.x,
-            y: bs.y + 24,
-            vx: Math.cos(ang) * (spd * 0.92),
-            vy: Math.sin(ang) * (spd * 0.92),
-            amber: k % 2 === 0
+        // Active Wing Turrets fire aimed twin/triple bursts!
+        const fireTurret = (tx, ty) => {
+          const a = Math.atan2(p.y - ty, p.x - tx);
+          const offs = state.stage >= 2 ? [-0.14, 0, 0.14] : [-0.1, 0.1];
+          offs.forEach((o) => {
+            state.enemyBullets.push({
+              x: tx,
+              y: ty + 16,
+              vx: Math.cos(a + o) * baseSpd,
+              vy: Math.sin(a + o) * baseSpd,
+              kind: 'amber'
+            });
           });
+        };
+        if (bs.leftTurretHp > 0) fireTurret(bs.x - bs.txOff, bs.y + bs.tyOff);
+        if (bs.rightTurretHp > 0) fireTurret(bs.x + bs.txOff, bs.y + bs.tyOff);
+
+        if (bs.phase === 1) {
+          // Phase 1: Sweeping Fan Curtain
+          const count = 5 + Math.min(4, state.stage);
+          const spread = 1.15;
+          const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
+          for (let k = 0; k < count; k++) {
+            const ang = aim - spread / 2 + (spread * k) / (count - 1);
+            state.enemyBullets.push({
+              x: bs.x,
+              y: bs.y + 26,
+              vx: Math.cos(ang) * (baseSpd * 0.92),
+              vy: Math.sin(ang) * (baseSpd * 0.92),
+              kind: k % 2 === 0 ? 'purple' : 'red'
+            });
+          }
+          bs.patternTimer = Math.max(0.88, 1.32 - state.stage * 0.07);
+        } else if (bs.phase === 2) {
+          // Phase 2: Rotating Spiral Plasma Streams + Aimed Sniper Lance!
+          bs.spiralAngle += 0.44;
+          const arms = 6 + Math.min(4, state.stage);
+          for (let k = 0; k < arms; k++) {
+            const ang = bs.spiralAngle + (Math.PI * 2 * k) / arms;
+            state.enemyBullets.push({
+              x: bs.x,
+              y: bs.y + 18,
+              vx: Math.cos(ang) * (baseSpd * 0.86),
+              vy: Math.sin(ang) * (baseSpd * 0.86),
+              kind: 'purple'
+            });
+          }
+          if (Math.floor(bs.spiralAngle * 2) % 2 === 0) {
+            const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
+            [-0.12, 0, 0.12].forEach((o) => {
+              state.enemyBullets.push({
+                x: bs.x,
+                y: bs.y + 28,
+                vx: Math.cos(aim + o) * (baseSpd * 1.12),
+                vy: Math.sin(aim + o) * (baseSpd * 1.12),
+                kind: 'red'
+              });
+            });
+          }
+          bs.patternTimer = Math.max(0.42, 0.62 - state.stage * 0.04);
+        } else {
+          // Phase 3 (FINAL OVERDRIVE): Interlocking Double-Helix Ring + Aimed Flak!
+          bs.spiralAngle -= 0.52;
+          const ringCount = 10 + Math.min(6, state.stage * 2);
+          for (let k = 0; k < ringCount; k++) {
+            const ang = bs.spiralAngle + (Math.PI * 2 * k) / ringCount;
+            const spd = k % 2 === 0 ? baseSpd * 0.96 : baseSpd * 0.76;
+            state.enemyBullets.push({
+              x: bs.x,
+              y: bs.y + 20,
+              vx: Math.cos(ang) * spd,
+              vy: Math.sin(ang) * spd,
+              kind: k % 2 === 0 ? 'purple' : 'amber'
+            });
+          }
+          bs.patternTimer = Math.max(0.46, 0.68 - state.stage * 0.04);
         }
-        bs.patternTimer = bs.phase2 ? 1.05 : 1.45;
       }
 
-      if (p && p.invuln <= 0 && Math.abs(p.x - bs.x) < 76 && Math.abs(p.y - bs.y) < 34) {
+      if (p && p.invuln <= 0 && Math.abs(p.x - bs.x) < bs.w * 0.34 && Math.abs(p.y - bs.y) < bs.h * 0.28) {
         hitPlayer();
       }
     }
 
-    // Enemy Bullets
+    // Enemy Bullets (Fair 1945 7.5px cockpit core hitbox!)
     for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
       const eb = state.enemyBullets[i];
       eb.x += eb.vx * dt;
       eb.y += eb.vy * dt;
-      if (eb.x < -20 || eb.x > W + 20 || eb.y < -20 || eb.y > H + 20) {
+      if (eb.x < -24 || eb.x > W + 24 || eb.y < -24 || eb.y > H + 24) {
         state.enemyBullets.splice(i, 1);
         continue;
       }
-      // Fair 1945 arcade cockpit graze hitbox (7px radius!)
-      if (p && p.invuln <= 0 && Math.hypot(eb.x - p.x, eb.y - p.y) < 8.5) {
+      if (p && p.invuln <= 0 && Math.hypot(eb.x - p.x, eb.y - p.y) < 7.5) {
         state.enemyBullets.splice(i, 1);
         hitPlayer();
       }
@@ -2006,19 +2032,18 @@
     // Items & Magnetic Pickup
     for (let i = state.items.length - 1; i >= 0; i--) {
       const it = state.items[i];
-      it.spin += dt * 5.5;
+      it.spin += dt * 6.0;
 
-      // Gentle cockpit magnet within 74px!
       if (p) {
         const dist = Math.hypot(p.x - it.x, p.y - it.y);
-        if (dist < 26) {
+        if (dist < 27) {
           state.items.splice(i, 1);
           collectItem(it);
           continue;
         }
-        if (dist < 82) {
-          it.x += ((p.x - it.x) / dist) * 260 * dt;
-          it.y += ((p.y - it.y) / dist) * 260 * dt;
+        if (dist < 88) {
+          it.x += ((p.x - it.x) / dist) * 280 * dt;
+          it.y += ((p.y - it.y) / dist) * 280 * dt;
         }
       }
 
@@ -2026,26 +2051,33 @@
       it.y += it.vy * dt;
 
       if (it.bounces > 0) {
-        if (it.x < 20 || it.x > W - 20) {
+        if (it.x < 22 || it.x > W - 22) {
           it.vx *= -1;
-          it.x = Math.max(20, Math.min(W - 20, it.x));
+          it.x = Math.max(22, Math.min(W - 22, it.x));
           it.bounces--;
         }
-        if (it.y < 52 || (it.y > H - 48 && it.vy > 0)) {
+        if (it.y < 54 || (it.y > H - 48 && it.vy > 0)) {
           it.vy *= -1;
-          it.y = Math.max(52, Math.min(H - 48, it.y));
+          it.y = Math.max(54, Math.min(H - 48, it.y));
           it.bounces--;
         }
-      } else if (it.y > H + 36) {
+      } else if (it.y > H + 40) {
         state.items.splice(i, 1);
       }
     }
 
-    // Explosions, Sparks, Popups
+    // Explosions, Shockwaves, Sparks, Popups
     for (let i = state.explosions.length - 1; i >= 0; i--) {
       const ex = state.explosions[i];
       ex.frame += ex.speed * dt;
-      if (ex.frame >= SPRITES.fx.length) state.explosions.splice(i, 1);
+      if (ex.frame >= 12) state.explosions.splice(i, 1);
+    }
+
+    for (let i = state.shockwaves.length - 1; i >= 0; i--) {
+      const sw = state.shockwaves[i];
+      sw.r += (sw.maxR - sw.r) * Math.min(1, 9 * dt) + 80 * dt;
+      sw.alpha -= dt * 2.2;
+      if (sw.alpha <= 0 || sw.r >= sw.maxR) state.shockwaves.splice(i, 1);
     }
 
     for (let i = state.sparks.length - 1; i >= 0; i--) {
@@ -2058,203 +2090,323 @@
 
     for (let i = state.popups.length - 1; i >= 0; i--) {
       const pp = state.popups[i];
-      pp.y -= 36 * dt;
+      pp.y -= 38 * dt;
       pp.life -= dt;
       if (pp.life <= 0) state.popups.splice(i, 1);
     }
   }
 
   /* =========================================================================
-   * 10. HIGH-SPEED HARDWARE BLIT RENDERER (Locked 60 FPS)
+   * 9. REMASTERED HD HARDWARE RENDERER (Locked 60 FPS on Galaxy A-Series)
    * ========================================================================= */
   function render() {
     ctx.save();
 
     if (state.screenShake > 0) {
-      const m = state.screenShake * 13;
+      const m = state.screenShake * 14;
       ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
     }
 
-    // 1. Tiled Seamless Deep Ocean Layer
-    const oceanTile = SPRITES.bg.ocean;
-    const startY = (state.oceanScroll % 256) - 256;
-    for (let y = startY; y < H; y += 256) {
-      for (let x = 0; x < W; x += 256) {
-        ctx.drawImage(oceanTile, x, y);
+    // 1. Seamless HD Pre-Rendered Aerial Terrain Map (Changes Biome per Stage!)
+    if (HD.ready) {
+      const biomeIdx = (state.stage - 1) % 3;
+      const terrainImg = biomeIdx === 1 ? HD.terrains.fortress : HD.terrains.pacific;
+      const drawW = W;
+      const drawH = Math.round(W * (terrainImg.height / terrainImg.width));
+      const offset = state.terrainScroll % drawH;
+      for (let y = offset - drawH; y < H; y += drawH) {
+        ctx.drawImage(terrainImg, 0, y, drawW, drawH + 1);
+      }
+
+      // Stage 3/6/9 Crimson Dusk / Night Storm Tactical Lighting Grade!
+      if (biomeIdx === 2) {
+        ctx.fillStyle = 'rgba(28, 12, 38, 0.36)';
+        ctx.fillRect(0, 0, W, H);
+      }
+    } else {
+      ctx.fillStyle = '#061224';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // 2. Surface Naval Battleships (with water wake foam!)
+    if (HD.ready) {
+      const nowWake = performance.now() * 0.005;
+      for (let i = 0; i < state.enemies.length; i++) {
+        const en = state.enemies[i];
+        if (!en.ground) continue;
+        const spr = HD.enemies.battleship;
+        // White bow & stern water wake
+        ctx.strokeStyle = 'rgba(224, 242, 254, 0.32)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(en.x, en.y + spr.h * 0.42);
+        ctx.lineTo(en.x - 16 - Math.sin(nowWake) * 2, en.y - spr.h * 0.48);
+        ctx.moveTo(en.x, en.y + spr.h * 0.42);
+        ctx.lineTo(en.x + 16 + Math.sin(nowWake) * 2, en.y - spr.h * 0.48);
+        ctx.stroke();
+
+        ctx.drawImage(spr.img, en.x - spr.w / 2, en.y - spr.h / 2, spr.w, spr.h);
       }
     }
 
-    // 2. Tropical Islands Layer
-    state.islands.forEach((isl) => {
-      const iw = 180 * isl.scale;
-      const ih = 150 * isl.scale;
-      ctx.drawImage(SPRITES.bg.islandA, isl.x - iw / 2, isl.y - ih / 2, iw, ih);
-    });
-
-    // 3. Surface Naval Battleships (drawn below clouds & planes!)
-    for (let i = 0; i < state.enemies.length; i++) {
-      const en = state.enemies[i];
-      if (en.ground) {
-        ctx.drawImage(SPRITES.enemies.battleship, en.x - 34, en.y - 68);
-      }
-    }
-
-    // 4. Translucent High-Altitude Clouds
+    // 3. High-Altitude Translucent Clouds
     state.clouds.forEach((cl) => {
-      const cw = 190 * cl.scale;
-      const ch = 120 * cl.scale;
-      ctx.drawImage(SPRITES.bg.cloud, cl.x - cw / 2, cl.y - ch / 2, cw, ch);
+      const cw = 220 * cl.scale;
+      const ch = 138 * cl.scale;
+      ctx.drawImage(HD.ov.cloud, cl.x - cw / 2, cl.y - ch / 2, cw, ch);
     });
 
-    // 5. Items & Spinning Gold Medals
+    // 4. Items & Spinning Gold Bullion Medals
     for (let i = 0; i < state.items.length; i++) {
       const it = state.items[i];
       if (it.kind === 'medal') {
-        const scaleX = Math.max(0.32, Math.abs(Math.cos(it.spin)));
+        const sx = Math.max(0.28, Math.abs(Math.cos(it.spin)));
         ctx.save();
         ctx.translate(it.x, it.y);
-        ctx.scale(scaleX, 1);
-        ctx.drawImage(SPRITES.items.medal, -14, -14);
+        ctx.scale(sx, 1);
+        ctx.drawImage(HD.ov.items.medal, -15, -15);
         ctx.restore();
       } else {
-        ctx.drawImage(SPRITES.items[it.kind], it.x - 19, it.y - 19);
+        ctx.drawImage(HD.ov.items[it.kind], it.x - 21, it.y - 21);
       }
     }
 
-    // 6. Player Projectiles
+    // 5. Giant 3-Phase Stage Boss (True Silhouette Altitude Shadow + Reactor Glow + Turret Markers!)
+    if (HD.ready && state.boss) {
+      const bs = state.boss;
+      const bAsset = HD.bosses[bs.bossIdx];
+      const bShadow = HD.bossShadows[bs.bossIdx];
+
+      // Realistic offset silhouette shadow on sea/fortress far below!
+      ctx.drawImage(bShadow, bs.x - bs.w / 2 + 26, bs.y - bs.h / 2 + 38, bs.w * 0.92, bs.h * 0.92);
+
+      ctx.save();
+      if (bs.hitFlash > 0) ctx.filter = 'brightness(1.55)';
+      ctx.drawImage(bAsset.img, bs.x - bs.w / 2, bs.y - bs.h / 2, bs.w, bs.h);
+      ctx.restore();
+
+      // Pulsing Reactor Core & Destructible Wing Turret Target Reticles
+      const pulse = 0.55 + 0.45 * Math.sin(performance.now() * 0.012);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      if (bs.phase >= 2) {
+        const rGrad = ctx.createRadialGradient(bs.x, bs.y + 4, 2, bs.x, bs.y + 4, bs.phase === 3 ? 44 : 28);
+        rGrad.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+        rGrad.addColorStop(0.45, bs.phase === 3 ? 'rgba(239, 68, 68, 0.65)' : 'rgba(251, 146, 60, 0.45)');
+        rGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = rGrad;
+        ctx.beginPath();
+        ctx.arc(bs.x, bs.y + 4, bs.phase === 3 ? 44 : 28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Draw crisp tactical lock-on brackets on live Left/Right Wing Turrets + scorched craters when destroyed!
+      [
+        [bs.leftTurretHp, bs.x - bs.txOff, bs.y + bs.tyOff],
+        [bs.rightTurretHp, bs.x + bs.txOff, bs.y + bs.tyOff]
+      ].forEach(([thp, tx, ty]) => {
+        if (thp > 0) {
+          ctx.strokeStyle = `rgba(56, 189, 248, ${0.45 + pulse * 0.45})`;
+          ctx.lineWidth = 1.6;
+          ctx.strokeRect(tx - 16, ty - 16, 32, 32);
+          // Mini HP bar above each wing turret!
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fillRect(tx - 16, ty - 22, 32, 4);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(tx - 16, ty - 22, 32 * Math.max(0, thp / bs.maxTurretHp), 4);
+        } else {
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+          ctx.beginPath();
+          ctx.arc(tx, ty, 13, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+    }
+
+    // 6. Airborne Enemy Planes (with Silhouette Altitude Shadows & Hit Flash!)
+    if (HD.ready) {
+      for (let i = 0; i < state.enemies.length; i++) {
+        const en = state.enemies[i];
+        if (en.ground) continue;
+        const spr = HD.enemies[en.kind];
+        const shd = HD.enemyShadows[en.kind];
+
+        if (shd) {
+          ctx.drawImage(shd, en.x - spr.w / 2 + 18, en.y - spr.h / 2 + 24, spr.w * 0.88, spr.h * 0.88);
+        }
+
+        ctx.save();
+        if (en.hitFlash > 0) ctx.filter = 'brightness(1.7)';
+        ctx.drawImage(spr.img, en.x - spr.w / 2, en.y - spr.h / 2, spr.w, spr.h);
+        ctx.restore();
+      }
+    }
+
+    // 7. Player Projectiles (Additive Glow Blend for Lasers & Vulcan!)
     for (let i = 0; i < state.bullets.length; i++) {
       const b = state.bullets[i];
       if (b.kind === 'vulcan') {
-        ctx.drawImage(SPRITES.bullets.vulcan, b.x - 6, b.y - 13);
+        ctx.drawImage(HD.ov.bullets.vulcan, b.x - 7, b.y - 15);
+      } else if (b.kind === 'vulcanMax') {
+        ctx.drawImage(HD.ov.bullets.vulcanMax, b.x - 8, b.y - 17);
       } else if (b.kind === 'laser') {
-        ctx.drawImage(SPRITES.bullets.laser, b.x - 9, b.y - 24);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.drawImage(HD.ov.bullets.laser, b.x - 10, b.y - 28);
+        ctx.restore();
       } else if (b.kind === 'missile') {
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 2);
-        ctx.drawImage(SPRITES.bullets.missile, -8, -14);
+        ctx.drawImage(HD.ov.bullets.missile, -9, -15);
         ctx.restore();
       } else {
-        ctx.drawImage(SPRITES.bullets.rocket, b.x - 9, b.y - 15);
+        ctx.drawImage(HD.ov.bullets.rocket, b.x - 10, b.y - 17);
       }
     }
 
-    // 7. Giant Stage Boss
-    if (state.boss) {
-      const bs = state.boss;
-      // Drop shadow over ocean
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
-      ctx.beginPath();
-      ctx.ellipse(bs.x + 18, bs.y + 34, 92, 32, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.drawImage(SPRITES.enemies.bossBody, bs.x - 115, bs.y - 68);
-      if (bs.leftTurretHp > 0) {
-        ctx.drawImage(SPRITES.enemies.bossTurret, bs.x - 68 - 22, bs.y + 12 - 22);
-      }
-      if (bs.rightTurretHp > 0) {
-        ctx.drawImage(SPRITES.enemies.bossTurret, bs.x + 68 - 22, bs.y + 12 - 22);
-      }
-    }
-
-    // 8. Airborne Enemies
-    for (let i = 0; i < state.enemies.length; i++) {
-      const en = state.enemies[i];
-      if (en.ground) continue;
-      const spr = SPRITES.enemies[en.kind];
-      // Aircraft shadow on water below
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
-      ctx.beginPath();
-      ctx.ellipse(en.x + 14, en.y + 22, spr.width * 0.28, spr.height * 0.18, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.drawImage(spr, en.x - spr.width / 2, en.y - spr.height / 2);
-    }
-
-    // 9. Player Fighter + Evolved Hull + Wingman Drones + Shield
+    // 8. HD 3D Pre-Rendered Player Fighter + Evolved Hull + Drones + Mach Afterburners!
     const p = state.player;
     const nowMs = performance.now();
-    if (p && state.mode !== 'gameover') {
-      const blinkHide = p.invuln > 0 && Math.floor(nowMs / 75) % 2 === 0;
+    if (HD.ready && p && state.mode !== 'gameover') {
+      const blinkHide = p.invuln > 0 && Math.floor(nowMs / 70) % 2 === 0;
       if (!blinkHide) {
         const tier = p.power >= 4 ? 3 : p.power >= 2 ? 2 : 1;
-        const fSpr = SPRITES.fighters[state.fighterType][tier];
+        const fAsset = HD.fighters[state.fighterType][tier];
+        const fShadow = HD.fighterShadows[state.fighterType][tier];
 
-        // Shadow on water
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.26)';
-        ctx.beginPath();
-        ctx.ellipse(p.x + 16, p.y + 26, 22, 14, 0, 0, Math.PI * 2);
-        ctx.fill();
+        // True aircraft silhouette shadow on ocean/fortress below!
+        ctx.drawImage(
+          fShadow,
+          p.x - (fAsset.w * 0.85) / 2 + 18,
+          p.y - (fAsset.h * 0.85) / 2 + 24,
+          fAsset.w * 0.85,
+          fAsset.h * 0.85
+        );
 
-        // Twin or Quad Afterburner Flames
-        const flameLen = (p.thrust > 0 ? 18 : p.thrust < 0 ? 7 : 12) + (Math.floor(nowMs / 40) % 6);
-        ctx.fillStyle = p.power >= 4 ? '#38bdf8' : '#fbbf24';
-        if (state.fighterType === 'lightning') {
-          ctx.fillRect(p.x - 13, p.y + 24, 4, flameLen);
-          ctx.fillRect(p.x + 9, p.y + 24, 4, flameLen);
-        } else {
-          ctx.fillRect(p.x - 5, p.y + 24, 10, flameLen);
-        }
-
-        // Banking 3D Perspective Tilt
+        // Additive Mach Shock-Diamond Afterburners & Muzzle Flash!
         ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.scale(1 - Math.abs(p.bank) * 0.16, 1);
-        ctx.rotate(p.bank * 0.12);
-        ctx.drawImage(fSpr, -fSpr.width / 2, -fSpr.height / 2);
+        ctx.globalCompositeOperation = 'lighter';
+        const flameLen = (p.thrust > 0 ? 24 : p.thrust < 0 ? 10 : 16) + (Math.floor(nowMs / 35) % 7);
+        const flameColor = p.power >= 4 ? 'rgba(56, 189, 248, 0.88)' : 'rgba(251, 191, 36, 0.88)';
+        ctx.fillStyle = flameColor;
+        if (state.fighterType === 'lightning') {
+          ctx.fillRect(p.x - 14, p.y + fAsset.h * 0.28, 5, flameLen);
+          ctx.fillRect(p.x + 9, p.y + fAsset.h * 0.28, 5, flameLen);
+        } else {
+          ctx.fillRect(p.x - 6, p.y + fAsset.h * 0.34, 12, flameLen);
+        }
+        if (p.muzzleFlash > 0) {
+          ctx.fillStyle = 'rgba(254, 240, 138, 0.75)';
+          ctx.beginPath();
+          ctx.arc(p.x - 9, p.y - fAsset.h * 0.42, 6, 0, Math.PI * 2);
+          ctx.arc(p.x + 9, p.y - fAsset.h * 0.42, 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
 
-        // Autonomous Wingman Drones
+        // 3D Banking Tilt + Crisp HD PBR Fighter Sprite
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.scale(1 - Math.abs(p.bank) * 0.15, 1);
+        ctx.rotate(p.bank * 0.11);
+        ctx.drawImage(fAsset.img, -fAsset.w / 2, -fAsset.h / 2, fAsset.w, fAsset.h);
+
+        // Spinning propeller blur on P-38 twin booms!
+        if (state.fighterType === 'lightning') {
+          ctx.drawImage(HD.ov.propBlur, -26, -fAsset.h * 0.36);
+          ctx.drawImage(HD.ov.propBlur, -2, -fAsset.h * 0.36);
+        }
+        ctx.restore();
+
+        // Subtle glowing cockpit hitbox indicator when boss bullets are dense so dodging feels razor-precise!
+        if (state.enemyBullets.length >= 10) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        }
+
+        // Autonomous HD Wingman Drones
         const drones = getDronePositions(p);
         drones.forEach((d) => {
-          ctx.drawImage(SPRITES.fighters.drone, d.x - 16, d.y - 16);
+          ctx.drawImage(HD.drone.img, d.x - HD.drone.w / 2, d.y - HD.drone.h / 2, HD.drone.w, HD.drone.h);
         });
 
         // Energy Shield Barrier
         if (p.shield) {
-          ctx.strokeStyle = 'rgba(34, 211, 238, 0.82)';
-          ctx.lineWidth = 2.2;
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = 'rgba(34, 211, 238, 0.85)';
+          ctx.lineWidth = 2.4;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 34, 0, Math.PI * 2);
+          ctx.arc(p.x, p.y, 38, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.restore();
         }
       }
     }
 
-    // 10. Allied B-29 Air-Strike Squadron
-    state.airStrikeBombers.forEach((bm) => {
-      ctx.drawImage(SPRITES.fighters.bomber, bm.x - 75, bm.y - 60);
-    });
-
-    // 11. Volumetric Explosions & Sparks
-    for (let i = 0; i < state.explosions.length; i++) {
-      const ex = state.explosions[i];
-      const spr = SPRITES.fx[Math.min(SPRITES.fx.length - 1, Math.floor(ex.frame))];
-      const sz = 96 * ex.scale;
-      ctx.drawImage(spr, ex.x - sz / 2, ex.y - sz / 2, sz, sz);
+    // 9. Allied B-29 Superfortress Squadron
+    if (HD.ready) {
+      state.airStrikeBombers.forEach((bm) => {
+        ctx.drawImage(HD.bomberShadow, bm.x - HD.bomber.w / 2 + 28, bm.y - HD.bomber.h / 2 + 38);
+        ctx.drawImage(HD.bomber.img, bm.x - HD.bomber.w / 2, bm.y - HD.bomber.h / 2, HD.bomber.w, HD.bomber.h);
+      });
     }
+
+    // 10. 12-Frame HD Volumetric Pyrotechnic Explosions + Shockwaves + Sparks
+    if (HD.ready) {
+      for (let i = 0; i < state.explosions.length; i++) {
+        const ex = state.explosions[i];
+        const idx = Math.min(11, Math.floor(ex.frame));
+        const sz = 112 * ex.scale;
+        ctx.drawImage(HD.explosionFrames[idx], ex.x - sz / 2, ex.y - sz / 2, sz, sz);
+      }
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < state.shockwaves.length; i++) {
+      const sw = state.shockwaves[i];
+      ctx.strokeStyle = `rgba(253, 224, 71, ${Math.max(0, sw.alpha)})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
 
     for (let i = 0; i < state.sparks.length; i++) {
       const sp = state.sparks[i];
       ctx.fillStyle = sp.color;
-      ctx.fillRect(sp.x - 1.5, sp.y - 1.5, 3, 3);
+      ctx.fillRect(sp.x - sp.size / 2, sp.y - sp.size / 2, sp.size, sp.size);
     }
 
-    // 12. High-Contrast Enemy Bullets (Always drawn on top so player sees every bullet clearly!)
+    // 11. High-Contrast Enemy Bullets (Always rendered cleanly on top of explosions & terrain!)
     for (let i = 0; i < state.enemyBullets.length; i++) {
       const eb = state.enemyBullets[i];
-      const spr = eb.amber ? SPRITES.bullets.enemyAmber : SPRITES.bullets.enemyRed;
-      ctx.drawImage(spr, eb.x - 10, eb.y - 10);
+      if (eb.kind === 'purple') {
+        ctx.drawImage(HD.ov.bullets.enemyPurple, eb.x - 13, eb.y - 13);
+      } else if (eb.kind === 'amber') {
+        ctx.drawImage(HD.ov.bullets.enemyAmber, eb.x - 11, eb.y - 11);
+      } else {
+        ctx.drawImage(HD.ov.bullets.enemyRed, eb.x - 11, eb.y - 11);
+      }
     }
 
-    // 13. Floating Tactical Popups
+    // 12. Tactical Score & Upgrade Popups
     ctx.font = 'italic 700 13px Chakra Petch, sans-serif';
     ctx.textAlign = 'center';
     for (let i = 0; i < state.popups.length; i++) {
       const pp = state.popups[i];
       ctx.globalAlpha = Math.max(0, pp.life / pp.maxLife);
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(pp.text, pp.x + 1, pp.y + 1);
+      ctx.fillStyle = '#020617';
+      ctx.fillText(pp.text, pp.x + 1.2, pp.y + 1.2);
       ctx.fillStyle = pp.color;
       ctx.fillText(pp.text, pp.x, pp.y);
     }
@@ -2280,5 +2432,9 @@
   resizeCanvas();
   seedScenery();
   updateHud();
+  loadAllHdAssets().catch((err) => {
+    console.error('HD asset load error:', err);
+    btnStartGame.textContent = '🔥 스크램블 출격 (START MISSION)';
+  });
   requestAnimationFrame(loop);
 })();
