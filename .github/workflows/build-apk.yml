@@ -1,0 +1,329 @@
+name: Build & Publish Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build & Sign Offline Fullscreen Android APK
+        run: |
+          set -euo pipefail
+
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)"
+          PLATFORM_DIR="$(ls -d "$ANDROID_HOME/platforms/android-"* | sort -V | tail -n 1)"
+          ANDROID_JAR="$PLATFORM_DIR/android.jar"
+          echo "Using BUILD_TOOLS=$BUILD_TOOLS"
+          echo "Using ANDROID_JAR=$ANDROID_JAR"
+
+          WORK="/tmp/apk-build"
+          rm -rf "$WORK"
+          mkdir -p "$WORK/assets/www" \
+                   "$WORK/res/mipmap-xxhdpi" \
+                   "$WORK/res/mipmap-xxxhdpi" \
+                   "$WORK/compiled_res" \
+                   "$WORK/gen" \
+                   "$WORK/classes" \
+                   "$WORK/dex" \
+                   "$WORK/src/com/kairen/strikers1945"
+
+          # Bundle complete HD Remastered web assets offline inside APK
+          cp index.html style.css game.js manifest.webmanifest favicon.png "$WORK/assets/www/"
+          cp -r icons assets "$WORK/assets/www/"
+
+          # App launcher icons
+          cp icons/icon-192.png "$WORK/res/mipmap-xxhdpi/ic_launcher.png"
+          cp icons/icon-512.png "$WORK/res/mipmap-xxxhdpi/ic_launcher.png"
+
+          cat > "$WORK/AndroidManifest.xml" << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.kairen.strikers1945"
+              android:versionCode="32"
+              android:versionName="3.2.0">
+
+              <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:label="1945 에이스 HD"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:hardwareAccelerated="true"
+                  android:allowBackup="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > "$WORK/src/com/kairen/strikers1945/MainActivity.java" << 'EOF'
+          package com.kairen.strikers1945;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import java.io.InputStream;
+          import java.util.HashMap;
+          import java.util.Map;
+
+          public class MainActivity extends Activity {
+              private WebView webView;
+              private static final String VIRTUAL_HOST = "appassets.androidplatform.net";
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  Window window = getWindow();
+                  window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  window.setStatusBarColor(Color.parseColor("#060d18"));
+                  window.setNavigationBarColor(Color.parseColor("#060d18"));
+                  if (Build.VERSION.SDK_INT >= 28) {
+                      WindowManager.LayoutParams lp = window.getAttributes();
+                      lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                      window.setAttributes(lp);
+                  }
+                  hideSystemBars();
+
+                  webView = new WebView(this);
+                  webView.setBackgroundColor(Color.parseColor("#060d18"));
+                  webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                  webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  webView.setVerticalScrollBarEnabled(false);
+                  webView.setHorizontalScrollBarEnabled(false);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setAllowFileAccess(false);
+                  settings.setSupportZoom(false);
+                  settings.setTextZoom(100);
+                  settings.setUserAgentString(settings.getUserAgentString() + " Strikers1945APK/3.2");
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          Uri uri = request.getUrl();
+                          if (uri != null && VIRTUAL_HOST.equalsIgnoreCase(uri.getHost())) {
+                              String path = uri.getPath();
+                              if (path == null || path.isEmpty() || "/".equals(path)) {
+                                  path = "/index.html";
+                              }
+                              String assetPath = "www" + path;
+                              try {
+                                  InputStream stream = getAssets().open(assetPath);
+                                  String mime = guessMimeType(assetPath);
+                                  String encoding = mime.startsWith("text/") || mime.contains("javascript") || mime.contains("json") ? "UTF-8" : null;
+                                  Map<String, String> headers = new HashMap<>();
+                                  headers.put("Access-Control-Allow-Origin", "*");
+                                  headers.put("Cache-Control", "public, max-age=31536000");
+                                  return new WebResourceResponse(mime, encoding, 200, "OK", headers, stream);
+                              } catch (Exception ignored) {
+                                  return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", null, null);
+                              }
+                          }
+                          return super.shouldInterceptRequest(view, request);
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri uri = request.getUrl();
+                          if (uri != null && VIRTUAL_HOST.equalsIgnoreCase(uri.getHost())) {
+                              return false;
+                          }
+                          if (uri != null) {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                              } catch (Exception ignored) {}
+                          }
+                          return true;
+                      }
+                  });
+
+                  setContentView(webView);
+                  webView.loadUrl("https://" + VIRTUAL_HOST + "/index.html");
+              }
+
+              private String guessMimeType(String p) {
+                  String lower = p.toLowerCase();
+                  if (lower.endsWith(".html")) return "text/html";
+                  if (lower.endsWith(".css")) return "text/css";
+                  if (lower.endsWith(".js")) return "application/javascript";
+                  if (lower.endsWith(".webmanifest") || lower.endsWith(".json")) return "application/json";
+                  if (lower.endsWith(".webp")) return "image/webp";
+                  if (lower.endsWith(".png")) return "image/png";
+                  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+                  if (lower.endsWith(".svg")) return "image/svg+xml";
+                  return "application/octet-stream";
+              }
+
+              private void hideSystemBars() {
+                  View decor = getWindow().getDecorView();
+                  decor.setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                  );
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) hideSystemBars();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (webView != null) {
+                      webView.onResume();
+                      webView.resumeTimers();
+                  }
+                  hideSystemBars();
+              }
+
+              @Override
+              protected void onPause() {
+                  if (webView != null) {
+                      webView.onPause();
+                      webView.pauseTimers();
+                  }
+                  super.onPause();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView != null) {
+                      webView.evaluateJavascript(
+                          "(function(){var s=document.getElementById('start-screen');if(s&&!s.hidden)return 'EXIT';var p=document.getElementById('pause-screen');var b=document.getElementById('btn-pause');if(b&&p&&p.hidden){b.click();return 'PAUSED';}return 'EXIT';})()",
+                          new ValueCallback<String>() {
+                              @Override
+                              public void onReceiveValue(String value) {
+                                  if (value == null || value.contains("EXIT")) {
+                                      finish();
+                                  }
+                              }
+                          }
+                      );
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.destroy();
+                      webView = null;
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+          # 1. Compile resources with aapt2
+          "$BUILD_TOOLS/aapt2" compile --dir "$WORK/res" -o "$WORK/compiled_res/res.zip"
+
+          # 2. Link resources + manifest + offline assets
+          "$BUILD_TOOLS/aapt2" link \
+            -o "$WORK/unsigned.apk" \
+            -I "$ANDROID_JAR" \
+            --manifest "$WORK/AndroidManifest.xml" \
+            -A "$WORK/assets" \
+            -0 .webp -0 .png \
+            --java "$WORK/gen" \
+            "$WORK/compiled_res/res.zip"
+
+          # 3. Compile Java sources -> DEX
+          javac --release 11 \
+            -cp "$ANDROID_JAR" \
+            -d "$WORK/classes" \
+            "$WORK/src/com/kairen/strikers1945/MainActivity.java" \
+            "$WORK/gen/com/kairen/strikers1945/R.java"
+
+          "$BUILD_TOOLS/d8" \
+            --lib "$ANDROID_JAR" \
+            --min-api 24 \
+            --output "$WORK/dex" \
+            "$WORK/classes/com/kairen/strikers1945/"*.class
+
+          # 4. Add classes.dex into APK & zipalign
+          (cd "$WORK/dex" && zip -u "$WORK/unsigned.apk" classes.dex)
+          "$BUILD_TOOLS/zipalign" -p -f 4 "$WORK/unsigned.apk" "$WORK/aligned.apk"
+
+          # 5. Sign APK (v1 + v2 + v3 schemes for all Android 7 ~ Android 15 Galaxy phones)
+          keytool -genkeypair \
+            -keystore "$WORK/release.jks" \
+            -storepass strikers1945 \
+            -keypass strikers1945 \
+            -alias acekey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Kairen, OU=Arcade, O=Strikers1945, L=Seoul, S=Seoul, C=KR"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$WORK/release.jks" \
+            --ks-pass pass:strikers1945 \
+            --key-pass pass:strikers1945 \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "${GITHUB_WORKSPACE}/strikers-1945-ace.apk" \
+            "$WORK/aligned.apk"
+
+          "$BUILD_TOOLS/apksigner" verify --verbose "${GITHUB_WORKSPACE}/strikers-1945-ace.apk"
+          ls -lh "${GITHUB_WORKSPACE}/strikers-1945-ace.apk"
+
+      - name: Publish APK to Latest GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v3.2.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "${GITHUB_WORKSPACE}/strikers-1945-ace.apk" \
+            --title "STRIKERS 1945 : SKY ACE HD (${TAG})" \
+            --notes "갤럭시 / 안드로이드 전용 오프라인 전체화면 앱 설치 파일 (strikers-1945-ace.apk) — Round 1 워밍업 난이도 & 라운드별 점진 상승 적용" \
+            --latest

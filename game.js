@@ -564,19 +564,23 @@
         window.location.reload();
       }
     });
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('./sw.js')
-        .then((reg) => reg.update().catch(() => {}))
-        .catch(() => {});
-    });
+    if (window.location.hostname !== 'appassets.androidplatform.net') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('./sw.js')
+          .then((reg) => reg.update().catch(() => {}))
+          .catch(() => {});
+      });
+    }
   }
 
   function isStandaloneApp() {
     return (
       window.matchMedia('(display-mode: standalone)').matches ||
       window.matchMedia('(display-mode: fullscreen)').matches ||
-      window.navigator.standalone === true
+      window.navigator.standalone === true ||
+      window.location.hostname === 'appassets.androidplatform.net' ||
+      /Strikers1945APK/i.test(navigator.userAgent || '')
     );
   }
 
@@ -609,39 +613,28 @@
       return;
     }
 
-    // Device-aware fallback instructions (Galaxy Chrome / Samsung Internet / In-App WebView / iOS)
     const ua = navigator.userAgent || '';
     const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     const isAndroid = /Android/i.test(ua);
-    const isSamsungBrowser = /SamsungBrowser/i.test(ua);
-    const isInAppWebView =
-      isAndroid && (/; wv\)/i.test(ua) || /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|Line/i.test(ua));
 
+    const btnApk = document.getElementById('btn-download-apk');
+    if (btnApk) btnApk.hidden = isIOS;
     btnOpenChrome.hidden = !isAndroid;
 
     if (isIOS) {
       installStepsEl.innerHTML =
         '1️⃣ Safari 브라우저 하단 중앙의 <strong>[공유 ↑]</strong> 버튼을 터치하세요.<br/>' +
         '2️⃣ 메뉴에서 <strong>[홈 화면에 추가]</strong>를 누르면 바탕화면에 <strong>1945에이스</strong> 앱이 설치됩니다!';
-    } else if (isInAppWebView) {
-      installStepsEl.innerHTML =
-        '현재 인앱 브라우저 화면에서는 바로 설치가 제한될 수 있습니다.<br/>' +
-        '👉 아래 초록색 <strong>[Chrome 브라우저로 열어서 바로 설치]</strong> 버튼을 누른 뒤, <strong>[📲 앱 설치]</strong>를 눌러주세요!';
-    } else if (isSamsungBrowser) {
-      installStepsEl.innerHTML =
-        '📱 <strong>갤럭시 삼성 인터넷 앱 다운로드 방법:</strong><br/>' +
-        '1️⃣ 상단 주소창의 <strong>[↓ 앱 설치]</strong> 아이콘을 누르거나, 우측 하단 <strong>[≡ 메뉴]</strong>를 터치하세요.<br/>' +
-        '2️⃣ <strong>[현재 페이지 추가] → [홈 화면]</strong>을 선택하면 앱으로 즉시 설치됩니다!';
     } else if (isAndroid) {
       installStepsEl.innerHTML =
-        '📱 <strong>갤럭시 / 안드로이드 앱 다운로드 방법:</strong><br/>' +
-        '1️⃣ 브라우저 우측 상단 점 3개 메뉴 <strong>[⋮]</strong>를 터치하세요.<br/>' +
-        '2️⃣ <strong>[앱 설치]</strong> 또는 <strong>[홈 화면에 추가] → [설치]</strong>를 누르면 스마트폰 앱으로 설치됩니다!<br/>' +
-        '<span style="font-size:0.74rem;color:#94a3b8;">(이미 설치된 경우 메뉴에 [1945에이스 열기]로 표시됩니다)</span>';
+        '💡 <strong>크롬·삼성인터넷에 [홈 화면에 추가 / 앱 설치] 메뉴가 안 보일 때:</strong><br/>' +
+        '1️⃣ 휴대폰 <strong>[설정] → [홈 화면] → [홈 화면 레이아웃 잠금]</strong>을 <strong>꺼주세요(OFF)</strong>! (잠겨 있으면 모든 브라우저에서 설치 메뉴가 숨겨집니다)<br/>' +
+        '2️⃣ 만약 그래도 안 보이면 <strong>[설정] → [애플리케이션] → [기본 앱 선택] → [홈 앱]</strong>에서 <strong>[One UI 홈]</strong>을 한 번 선택해 주세요.<br/>' +
+        '3️⃣ <strong>설정 바꾸기 번거로우시다면</strong> 아래 초록색 <strong>[📦 안드로이드 앱(.APK) 직접 다운]</strong> 버튼으로 바로 설치하실 수 있습니다!';
     } else {
       installStepsEl.innerHTML =
         '💻 <strong>PC / 모바일 앱 설치 방법:</strong><br/>' +
-        '브라우저 주소창 우측의 <strong>[📥 앱 설치]</strong> 아이콘을 클릭하거나, 브라우저 메뉴 <strong>[⋮] → [앱 설치 / 홈 화면에 추가]</strong>를 선택하세요!';
+        '브라우저 주소창 우측의 <strong>[📥 앱 설치]</strong> 아이콘을 클릭하거나, 메뉴 <strong>[⋮] → [앱 설치 / 홈 화면에 추가]</strong>를 선택하세요!';
     }
 
     installModalEl.hidden = false;
@@ -744,8 +737,8 @@
       localStorage.setItem(STORAGE_KEY, String(state.highScore));
     }
     if (state.score >= state.nextLifeScore) {
-      state.nextLifeScore += 75000;
-      if (state.lives < 5) {
+      state.nextLifeScore += 70000;
+      if (state.lives < 6) {
         state.lives++;
         sound.powerUp(true);
         addPopup(W / 2, H / 2, '1UP EXTRA FIGHTER!', '#4ade80');
@@ -1033,153 +1026,172 @@
 
     state.waveStep++;
     const s = state.stage;
-    const rankBoost = state.player ? (state.player.power - 1) * 0.08 : 0;
-    const hpScale = (1 + (s - 1) * 0.48) * (1 + rankBoost);
+    // Stage 1 is 1.0x (easy & breezy!), then climbs steadily every cleared round!
+    const hpScale = 1 + (s - 1) * 0.48 + Math.max(0, s - 3) * 0.25;
 
-    // 12 intense waves per stage -> Giant Boss at step 13!
-    if (state.waveStep >= 13) {
+    // Stage 1-2: 10 waves before Boss; Stage 3+: 12 waves before Boss!
+    const bossStep = s <= 2 ? 11 : 13;
+    if (state.waveStep >= bossStep) {
       spawnStageBoss();
       return;
     }
 
-    // Wave 6: Mid-Stage Heavy Blockade Vanguard!
+    // Wave 6: Mid-Stage Vanguard (Gentle 1 Gunship in Round 1 -> Twin Gunships in Round 2 -> Full Armada in Round 3+!)
     if (state.waveStep === 6) {
-      showBanner('HEAVY VANGUARD!', '적 중장갑 전폭기 & 전함 합동 저지선!', true, 1700);
-      [W * 0.26, W * 0.74].forEach((gx, idx) => {
+      showBanner('MID-STAGE VANGUARD', s === 1 ? '적 중형 폭격기 접근 — 파괴 시 파워업!' : '적 중장갑 전폭기 편대 저지선!', s >= 2, 1600);
+      if (s === 1) {
         state.enemies.push({
           kind: 'gunship',
-          x: gx,
-          y: -70 - idx * 24,
-          vx: idx === 0 ? 28 : -28,
-          vy: 56 + s * 4,
-          hp: 52 * hpScale,
-          maxHp: 52 * hpScale,
-          shootCd: 0.9,
-          dropsPower: idx === 0,
-          dropsSpecial: idx === 1,
-          score: 1800
+          x: W * 0.5,
+          y: -68,
+          vx: 22,
+          vy: 54,
+          hp: 16,
+          maxHp: 16,
+          shootCd: 1.35,
+          dropsPower: true,
+          score: 1200
         });
-      });
-      state.enemies.push({
-        kind: 'battleship',
-        x: W * 0.5,
-        y: -110,
-        vx: 0,
-        vy: 44,
-        hp: 65 * hpScale,
-        maxHp: 65 * hpScale,
-        shootCd: 1.0,
-        ground: true,
-        score: 2200
-      });
+      } else {
+        [W * 0.27, W * 0.73].forEach((gx, idx) => {
+          state.enemies.push({
+            kind: 'gunship',
+            x: gx,
+            y: -70 - idx * 24,
+            vx: idx === 0 ? 26 : -26,
+            vy: 54 + s * 3,
+            hp: 19 * hpScale,
+            maxHp: 19 * hpScale,
+            shootCd: 1.05,
+            dropsPower: idx === 0,
+            dropsSpecial: idx === 1,
+            score: 1800
+          });
+        });
+        if (s >= 3) {
+          state.enemies.push({
+            kind: 'battleship',
+            x: W * 0.5,
+            y: -110,
+            vx: 0,
+            vy: 44,
+            hp: 26 * hpScale,
+            maxHp: 26 * hpScale,
+            shootCd: 1.15,
+            ground: true,
+            score: 2200
+          });
+        }
+      }
       return;
     }
 
     const pattern = state.waveStep % 5;
     if (pattern === 1) {
-      // Aggressive Sweeping V-Squadron (More planes in higher stages!)
-      const half = s >= 3 ? 3 : 2;
+      // V-Squadron (3 planes in Round 1 -> 5 planes in Round 2-3 -> 7 planes in Round 4+!)
+      const half = s === 1 ? 1 : s <= 3 ? 2 : 3;
       const cx = 75 + Math.random() * (W - 150);
       for (let i = -half; i <= half; i++) {
         state.enemies.push({
           kind: 'scout',
-          x: Math.max(26, Math.min(W - 26, cx + i * 34)),
+          x: Math.max(26, Math.min(W - 26, cx + i * 36)),
           y: -32 - Math.abs(i) * 26,
-          vx: i * 14,
-          vy: 155 + s * 16,
-          hp: 4.2 * hpScale,
-          maxHp: 4.2 * hpScale,
-          shootCd: Math.max(0.45, 0.95 - s * 0.08) + Math.random() * 0.45,
+          vx: s === 1 ? 0 : i * 12,
+          vy: 125 + s * 16,
+          hp: 1.5 * hpScale,
+          maxHp: 1.5 * hpScale,
+          shootCd: Math.max(0.55, 1.9 - s * 0.22) + Math.random() * 0.8,
           score: 180
         });
       }
     } else if (pattern === 2) {
-      // Crimson Elite Supply Squadron (Controlled [P] Drop — only on waveStep 2 or 7!)
+      // Crimson Supply Squadron — Always drops [P] Power-Up so powering up is super fun!
       const fromLeft = Math.random() < 0.5;
-      const givePower = state.waveStep === 2 || state.waveStep === 7;
       for (let i = 0; i < 4; i++) {
         state.enemies.push({
           kind: 'supply',
           x: fromLeft ? 44 + i * 38 : W - 44 - i * 38,
           y: -34 - i * 36,
-          vx: fromLeft ? 48 : -48,
-          vy: 145 + s * 12,
-          hp: 5.5 * hpScale,
-          maxHp: 5.5 * hpScale,
-          shootCd: Math.max(0.5, 1.0 - s * 0.07),
-          dropsPower: givePower && i === 3,
+          vx: fromLeft ? 40 : -40,
+          vy: 122 + s * 12,
+          hp: 2.0 * hpScale,
+          maxHp: 2.0 * hpScale,
+          shootCd: Math.max(0.65, 1.95 - s * 0.2),
+          dropsPower: i === 2,
           score: 300
         });
       }
     } else if (pattern === 3) {
-      // Heavy Twin-Engine Gunship + Flanking Interceptors
-      const gx = W * (0.26 + Math.random() * 0.48);
+      // Heavy Gunship + Escorts
+      const gx = W * (0.28 + Math.random() * 0.44);
       state.enemies.push({
         kind: 'gunship',
         x: gx,
         y: -65,
-        vx: (Math.random() < 0.5 ? -1 : 1) * 24,
-        vy: 64 + s * 4,
-        hp: 46 * hpScale,
-        maxHp: 46 * hpScale,
-        shootCd: Math.max(0.65, 1.15 - s * 0.08),
-        dropsSpecial: Math.random() < 0.35,
+        vx: s === 1 ? 0 : (Math.random() < 0.5 ? -1 : 1) * 22,
+        vy: 54 + s * 4,
+        hp: 16 * hpScale,
+        maxHp: 16 * hpScale,
+        shootCd: Math.max(0.75, 1.75 - s * 0.16),
+        dropsSpecial: Math.random() < 0.55,
         score: 1500
       });
-      [-68, -34, 34, 68].forEach((ox, idx) => {
-        if (s === 1 && (idx === 0 || idx === 3)) return;
+      const escorts = s === 1 ? [-48, 48] : [-68, -34, 34, 68];
+      escorts.forEach((ox, idx) => {
         state.enemies.push({
           kind: 'scout',
           x: Math.max(26, Math.min(W - 26, gx + ox)),
           y: -30 - (idx % 2) * 22,
           vx: 0,
-          vy: 140 + s * 14,
-          hp: 4.0 * hpScale,
-          maxHp: 4.0 * hpScale,
-          shootCd: 0.75,
+          vy: 120 + s * 14,
+          hp: 1.5 * hpScale,
+          maxHp: 1.5 * hpScale,
+          shootCd: Math.max(0.65, 1.8 - s * 0.18),
           score: 180
         });
       });
     } else if (pattern === 4) {
-      // Dreadnought Naval Warship + Pincer Dive Interceptors
+      // Naval Battleship + Flanking Scouts
       state.enemies.push({
         kind: 'battleship',
         x: 68 + Math.random() * (W - 136),
         y: -95,
         vx: 0,
-        vy: 46,
-        hp: 58 * hpScale,
-        maxHp: 58 * hpScale,
-        shootCd: Math.max(0.7, 1.25 - s * 0.08),
+        vy: 44,
+        hp: 21 * hpScale,
+        maxHp: 21 * hpScale,
+        shootCd: Math.max(0.8, 1.85 - s * 0.16),
         ground: true,
         score: 1900
       });
-      const count = 4 + Math.min(4, s);
+      const count = s === 1 ? 2 : 3 + Math.min(4, s);
       for (let i = 0; i < count; i++) {
         state.enemies.push({
           kind: 'scout',
-          x: i % 2 === 0 ? 36 : W - 36,
-          y: -28 - i * 38,
-          vx: i % 2 === 0 ? 68 : -68,
-          vy: 165 + s * 14,
-          hp: 4.2 * hpScale,
-          maxHp: 4.2 * hpScale,
-          shootCd: Math.max(0.45, 0.85 - s * 0.06),
+          x: i % 2 === 0 ? 38 : W - 38,
+          y: -28 - i * 40,
+          vx: i % 2 === 0 ? 54 : -54,
+          vy: 132 + s * 14,
+          hp: 1.5 * hpScale,
+          maxHp: 1.5 * hpScale,
+          shootCd: Math.max(0.6, 1.75 - s * 0.18),
           score: 180
         });
       }
     } else {
-      // Pincer Heavy Gunships!
-      [W * 0.27, W * 0.73].forEach((gx, idx) => {
+      // Round 1: Single Gunship dropping [P]/[S]; Round 2+: Dual Pincer Gunships!
+      const positions = s === 1 ? [W * 0.5] : [W * 0.27, W * 0.73];
+      positions.forEach((gx, idx) => {
         state.enemies.push({
           kind: 'gunship',
           x: gx,
           y: -65 - idx * 36,
-          vx: idx === 0 ? 22 : -22,
-          vy: 60 + s * 4,
-          hp: 44 * hpScale,
-          maxHp: 44 * hpScale,
-          shootCd: Math.max(0.65, 1.15 - s * 0.08),
+          vx: s === 1 ? 18 : idx === 0 ? 22 : -22,
+          vy: 54 + s * 4,
+          hp: 16 * hpScale,
+          maxHp: 16 * hpScale,
+          shootCd: Math.max(0.75, 1.75 - s * 0.16),
+          dropsSpecial: idx === 0,
           score: 1500
         });
       });
@@ -1203,11 +1215,13 @@
 
     showBanner('🚨 WARNING 🚨', `초거대 결전 요새 [${fullName}] 출현!`, true, 2700);
 
-    // Dynamic Strikers 1945 Rank + Progressive Stage Scaling!
-    // Even at LV.5 MAX (~70 DPS), Stage 1 takes ~40s, Stage 2 ~52s, Stage 3+ ~65s+!
+    // Smooth Progressive Boss Curve:
+    // Stage 1: Easy & exciting (~480 Core HP) -> Stage 2 (~1,020) -> Stage 3 (~1,680) -> Stage 4 (~2,460) -> Stage 5+!
+    const s = state.stage;
     const pwr = state.player ? state.player.power : 1;
-    const coreHp = Math.round((1550 + (state.stage - 1) * 980) + (pwr - 1) * 210);
-    const turretHp = Math.round(440 + (state.stage - 1) * 280 + (pwr - 1) * 45);
+    const stageCoreBase = 480 + (s - 1) * 520 + Math.max(0, s - 2) * 160 * (s - 2);
+    const coreHp = Math.round(stageCoreBase * (1 + (pwr - 1) * 0.08));
+    const turretHp = Math.round((130 + (s - 1) * 145 + Math.max(0, s - 2) * 45) * (1 + (pwr - 1) * 0.06));
 
     state.boss = {
       bossIdx,
@@ -1219,14 +1233,14 @@
       x: W / 2,
       y: -120,
       targetY: 122,
-      vx: 64 + state.stage * 8,
+      vx: 48 + s * 9,
       hp: coreHp,
       maxHp: coreHp,
       leftTurretHp: turretHp,
       maxTurretHp: turretHp,
       rightTurretHp: turretHp,
-      phase: 1, // 1 -> 2 (at 65%) -> 3 (at 30% FINAL OVERDRIVE!)
-      patternTimer: 1.3,
+      phase: 1,
+      patternTimer: 1.45,
       spiralAngle: 0,
       hitFlash: 0,
       smokeTimer: 0
@@ -1253,12 +1267,12 @@
         spawnItem(en.x + 14, en.y + 8, 'medal');
       } else {
         sound.explodeSmall();
-        if (Math.random() < 0.25) spawnItem(en.x, en.y, 'medal');
+        if (Math.random() < 0.28) spawnItem(en.x, en.y, 'medal');
 
-        // Stage 3+ Elite Revenge Bullet on red supply / high-stage interceptors!
-        if (state.stage >= 3 && state.player && Math.random() < 0.28 && en.y < H * 0.65) {
+        // Stage 4+ Elite Revenge Bullet only in high stages!
+        if (state.stage >= 4 && state.player && Math.random() < 0.24 && en.y < H * 0.65) {
           const aim = Math.atan2(state.player.y - en.y, state.player.x - en.x);
-          const spd = 210 + state.stage * 15;
+          const spd = 185 + state.stage * 14;
           state.enemyBullets.push({
             x: en.x,
             y: en.y,
@@ -1288,7 +1302,7 @@
     const ty = b.y + b.tyOff;
 
     // 1. Check Destructible Left & Right Heavy Wing Turrets first!
-    if (b.leftTurretHp > 0 && Math.abs(hitX - lx) < 34 && Math.abs(hitY - ty) < 38) {
+    if (b.leftTurretHp > 0 && Math.abs(hitX - lx) < 36 && Math.abs(hitY - ty) < 40) {
       b.leftTurretHp -= dmg;
       if (b.leftTurretHp <= 0) {
         spawnExplosion(lx, ty, 1.8, 24, true);
@@ -1300,23 +1314,25 @@
       return;
     }
 
-    if (b.rightTurretHp > 0 && Math.abs(hitX - rx) < 34 && Math.abs(hitY - ty) < 38) {
+    if (b.rightTurretHp > 0 && Math.abs(hitX - rx) < 36 && Math.abs(hitY - ty) < 40) {
       b.rightTurretHp -= dmg;
       if (b.rightTurretHp <= 0) {
         spawnExplosion(rx, ty, 1.8, 24, true);
         sound.explodeBig();
         state.screenShake = 0.35;
         spawnItem(rx, ty, 'medal');
-        if (Math.random() < 0.65) spawnItem(rx, ty + 14, 'S');
+        if (Math.random() < 0.75) spawnItem(rx, ty + 14, 'S');
         addScore(3000, rx, ty, 'RIGHT CANNON DESTROYED!', '#38bdf8');
       }
       return;
     }
 
-    // 2. Armored Core Reduction while Wing Turrets remain operational!
+    // 2. Mild Core Armor Reduction while Wing Turrets remain operational (Gentle 75% in Stage 1, 58% in higher stages)
     let effectiveDmg = dmg;
     if (!ignoreArmor && (b.leftTurretHp > 0 || b.rightTurretHp > 0)) {
-      const armorRatio = b.leftTurretHp > 0 && b.rightTurretHp > 0 ? 0.52 : 0.76;
+      const fullArmor = state.stage === 1 ? 0.75 : 0.58;
+      const halfArmor = state.stage === 1 ? 0.88 : 0.78;
+      const armorRatio = b.leftTurretHp > 0 && b.rightTurretHp > 0 ? fullArmor : halfArmor;
       effectiveDmg = dmg * armorRatio;
       sound.armorClink();
     }
@@ -1329,26 +1345,25 @@
     // Phase 2 Transition at 65% HP!
     if (b.phase === 1 && b.hp <= b.maxHp * 0.65) {
       b.phase = 2;
-      b.patternTimer = 0.6;
+      b.patternTimer = 0.8;
       state.screenShake = 0.42;
       spawnExplosion(b.x - 32, b.y, 1.5, 18, true);
       spawnExplosion(b.x + 32, b.y, 1.5, 18, false);
       sound.explodeBig();
-      // Clear immediate bullets briefly for fair phase transition!
       state.enemyBullets = [];
-      showBanner('ARMOR SHATTERED!', '보스 2페이즈 돌입 — 회전 나선 탄막 개방!', true, 1650);
+      showBanner('ARMOR SHATTERED!', '보스 2페이즈 돌입 — 회전 탄막 개방!', true, 1650);
     }
 
     // Phase 3 Transition at 30% HP (FINAL CORE MELTDOWN!)
     if (b.phase === 2 && b.hp <= b.maxHp * 0.30) {
       b.phase = 3;
-      b.patternTimer = 0.5;
+      b.patternTimer = 0.7;
       state.screenShake = 0.52;
       state.flashAlpha = 0.35;
       spawnExplosion(b.x, b.y + 10, 2.0, 26, true);
       sound.explodeBig();
       state.enemyBullets = [];
-      showBanner('CRITICAL OVERDRIVE!', '최종 3페이즈 발악 패턴 — 총력 회피!', true, 1750);
+      showBanner('CRITICAL OVERDRIVE!', '최종 3페이즈 코어 폭주!', true, 1750);
     }
 
     // Boss Defeated!
@@ -1385,21 +1400,21 @@
       spawnItem(bx + 22, by + 18, 'B');
 
       const clearBonus = 15000 * clearedStage;
-      addScore(clearBonus, bx, by, `MISSION ${clearedStage} CLEAR! +${clearBonus.toLocaleString()}`, '#fde047');
+      addScore(clearBonus, bx, by, `ROUND ${clearedStage} CLEAR! +${clearBonus.toLocaleString()}`, '#fde047');
 
       state.stage++;
       state.waveStep = 0;
-      state.waveTimer = 3.6;
+      state.waveTimer = 3.5;
       updateHud();
 
       const nextBiomes = [
-        '남태평양 산호초 요새 해역 진입!',
-        '강철 협곡 해군 공창 요새 돌입 — 대공망 강화!',
-        '심야 적색 폭풍 함대 결전 해역 진입!'
+        '남태평양 산호초 요새 해역 — 난이도 상승!',
+        '강철 협곡 해군 공창 돌입 — 적 화력 강화!',
+        '심야 적색 폭풍 함대 진입 — 고난도 탄막 주의!'
       ];
       setTimeout(() => {
         if (state.mode === 'playing') {
-          showBanner(`MISSION ${state.stage}`, nextBiomes[(state.stage - 1) % 3], false, 2500);
+          showBanner(`ROUND ${state.stage} START`, nextBiomes[(state.stage - 1) % 3], false, 2500);
         }
       }, 1900);
     }
@@ -1413,7 +1428,7 @@
 
     if (p.shield) {
       p.shield = false;
-      p.invuln = 2.0;
+      p.invuln = 2.2;
       spawnExplosion(p.x, p.y, 1.15, 16, true);
       sound.explodeSmall();
       addPopup(p.x, p.y - 26, 'SHIELD GUARD!', '#22d3ee');
@@ -1437,19 +1452,19 @@
       gameoverMsgEl.textContent =
         state.score >= state.highScore && state.score > 0
           ? '🏆 최고 기록 달성! 전설적인 1945 스카이 에이스입니다!'
-          : '치열한 탄막 공중전이었습니다! 기체를 재정비해 다시 출격하세요!';
+          : '멋진 비행이었습니다! 다시 출격해 더 높은 라운드에 도전하세요!';
       setTimeout(() => {
         if (state.mode === 'gameover') gameoverScreenEl.hidden = false;
       }, 800);
     } else {
-      // Authentic arcade stakes: drop 2 power levels on death & eject 1 recovery [P] capsule!
+      // Forgiving recovery: only drop 1 power level & eject a [P] item!
       if (p.power > 1) {
-        p.power = Math.max(1, p.power - 2);
-        spawnItem(W / 2, H * 0.42, 'P');
+        p.power = Math.max(1, p.power - 1);
+        spawnItem(W / 2, H * 0.44, 'P');
       }
       p.x = W / 2;
       p.y = H - 76;
-      p.invuln = 3.0;
+      p.invuln = 3.2;
       updateHud();
     }
   }
@@ -1552,9 +1567,9 @@
     state.waveTimer = 1.0;
     state.bossActive = false;
     state.boss = null;
-    state.lives = 3;
-    state.bombs = 2;
-    state.nextLifeScore = 60000;
+    state.lives = 4;
+    state.bombs = 3;
+    state.nextLifeScore = 50000;
     state.bullets = [];
     state.enemyBullets = [];
     state.enemies = [];
@@ -1574,7 +1589,7 @@
     installModalEl.hidden = true;
 
     updateHud();
-    showBanner('MISSION 1', '남태평양 산호초 요새 돌파 — 적 보급편대의 [P]를 탈취하라!');
+    showBanner('ROUND 1 START', '워밍업 미션 — 적 보급편대의 [P]를 먹고 기체를 진화시켜라!');
   }
 
   function openHangar() {
@@ -1706,12 +1721,12 @@
       if (bm.y < -160) state.airStrikeBombers.splice(i, 1);
     }
 
-    // Wave Spawner
+    // Wave Spawner (Easy relaxed pacing in Round 1, faster each cleared round)
     if (!state.bossActive) {
       state.waveTimer -= dt;
       if (state.waveTimer <= 0) {
         spawnEnemyWave();
-        state.waveTimer = Math.max(1.55, 2.55 - state.stage * 0.14);
+        state.waveTimer = Math.max(1.5, 2.75 - (state.stage - 1) * 0.22);
       }
     }
 
@@ -1831,15 +1846,20 @@
         });
       }
 
-      // Progressive Enemy Fire!
+      // Progressive Enemy Fire (Easy & slow in Round 1 -> escalates every cleared round!)
       en.shootCd -= dt;
-      if (en.shootCd <= 0 && en.y > 22 && en.y < H - 135 && p) {
+      if (en.shootCd <= 0 && en.y > 24 && en.y < H - 145 && p) {
         const aim = Math.atan2(p.y - en.y, p.x - en.x);
-        const spd = Math.min(350, 205 + (state.stage - 1) * 24);
+        const spd = Math.min(340, 138 + (state.stage - 1) * 28);
 
         if (en.kind === 'gunship') {
-          en.shootCd = Math.max(0.95, 1.55 - state.stage * 0.09);
-          const spread = state.stage >= 3 ? [-0.36, -0.18, 0, 0.18, 0.36] : [-0.24, 0, 0.24];
+          en.shootCd = Math.max(0.95, 1.95 - (state.stage - 1) * 0.18);
+          const spread =
+            state.stage >= 4
+              ? [-0.36, -0.18, 0, 0.18, 0.36]
+              : state.stage >= 2
+              ? [-0.24, 0, 0.24]
+              : [-0.16, 0.16];
           spread.forEach((off, idx) => {
             state.enemyBullets.push({
               x: en.x,
@@ -1850,10 +1870,10 @@
             });
           });
         } else if (en.kind === 'battleship') {
-          en.shootCd = Math.max(1.05, 1.65 - state.stage * 0.08);
-          const count = state.stage >= 2 ? 4 : 2;
+          en.shootCd = Math.max(1.05, 2.05 - (state.stage - 1) * 0.18);
+          const count = Math.min(4, state.stage);
           for (let k = 0; k < count; k++) {
-            const off = (k - (count - 1) / 2) * 0.22;
+            const off = count === 1 ? 0 : (k - (count - 1) / 2) * 0.22;
             state.enemyBullets.push({
               x: en.x,
               y: en.y + 16,
@@ -1863,8 +1883,8 @@
             });
           }
         } else {
-          en.shootCd = Math.max(1.05, 1.85 - state.stage * 0.12) + Math.random() * 0.5;
-          if (state.stage >= 2 && en.kind === 'supply') {
+          en.shootCd = Math.max(1.05, 2.35 - (state.stage - 1) * 0.22) + Math.random() * 0.6;
+          if (state.stage >= 3 && en.kind === 'supply') {
             [-0.14, 0.14].forEach((off) => {
               state.enemyBullets.push({
                 x: en.x,
@@ -1888,14 +1908,14 @@
 
       // Air-to-air collision
       if (!en.ground && p && p.invuln <= 0) {
-        if (Math.abs(en.x - p.x) < 24 && Math.abs(en.y - p.y) < 24) {
+        if (Math.abs(en.x - p.x) < 22 && Math.abs(en.y - p.y) < 22) {
           damageEnemy(en, 18);
           hitPlayer();
         }
       }
     }
 
-    // Giant 3-Phase Boss Update & Bullet-Hell Patterns!
+    // Giant 3-Phase Boss Update & Round-Scaled Patterns!
     if (state.boss) {
       const bs = state.boss;
       if (bs.hitFlash > 0) bs.hitFlash -= dt;
@@ -1903,7 +1923,7 @@
       if (bs.y < bs.targetY) {
         bs.y += 82 * dt;
       } else {
-        const spdMult = bs.phase === 3 ? 1.35 : bs.phase === 2 ? 1.15 : 1.0;
+        const spdMult = bs.phase === 3 ? 1.3 : bs.phase === 2 ? 1.12 : 1.0;
         bs.x += bs.vx * spdMult * dt;
         const margin = Math.min(115, W * 0.28);
         if ((bs.x < margin && bs.vx < 0) || (bs.x > W - margin && bs.vx > 0)) bs.vx *= -1;
@@ -1928,12 +1948,13 @@
 
       bs.patternTimer -= dt;
       if (bs.patternTimer <= 0 && p && bs.y >= bs.targetY - 15) {
-        const baseSpd = Math.min(340, 200 + (state.stage - 1) * 22 + (bs.phase - 1) * 26);
+        const baseSpd = Math.min(335, 140 + (state.stage - 1) * 26 + (bs.phase - 1) * 18);
 
-        // Active Wing Turrets fire aimed twin/triple bursts!
+        // Active Wing Turrets: 1-way in Round 1 -> 2-way in Round 2-3 -> 3-way in Round 4+
         const fireTurret = (tx, ty) => {
           const a = Math.atan2(p.y - ty, p.x - tx);
-          const offs = state.stage >= 2 ? [-0.14, 0, 0.14] : [-0.1, 0.1];
+          const offs =
+            state.stage >= 4 ? [-0.15, 0, 0.15] : state.stage >= 2 ? [-0.1, 0.1] : [0];
           offs.forEach((o) => {
             state.enemyBullets.push({
               x: tx,
@@ -1948,8 +1969,8 @@
         if (bs.rightTurretHp > 0) fireTurret(bs.x + bs.txOff, bs.y + bs.tyOff);
 
         if (bs.phase === 1) {
-          // Phase 1: Sweeping Fan Curtain
-          const count = 5 + Math.min(4, state.stage);
+          // Phase 1: Sweeping Fan Curtain (4-way gentle fan in Round 1 -> up to 9-way in high rounds)
+          const count = 3 + Math.min(6, state.stage);
           const spread = 1.15;
           const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
           for (let k = 0; k < count; k++) {
@@ -1962,41 +1983,42 @@
               kind: k % 2 === 0 ? 'purple' : 'red'
             });
           }
-          bs.patternTimer = Math.max(0.88, 1.32 - state.stage * 0.07);
+          bs.patternTimer = Math.max(0.85, 1.58 - (state.stage - 1) * 0.12);
         } else if (bs.phase === 2) {
-          // Phase 2: Rotating Spiral Plasma Streams + Aimed Sniper Lance!
-          bs.spiralAngle += 0.44;
-          const arms = 6 + Math.min(4, state.stage);
+          // Phase 2: Rotating Spiral Streams (5 slow arms in Round 1; sniper lance joins in Round 2+!)
+          bs.spiralAngle += 0.42;
+          const arms = 4 + Math.min(6, state.stage);
           for (let k = 0; k < arms; k++) {
             const ang = bs.spiralAngle + (Math.PI * 2 * k) / arms;
             state.enemyBullets.push({
               x: bs.x,
               y: bs.y + 18,
-              vx: Math.cos(ang) * (baseSpd * 0.86),
-              vy: Math.sin(ang) * (baseSpd * 0.86),
+              vx: Math.cos(ang) * (baseSpd * 0.85),
+              vy: Math.sin(ang) * (baseSpd * 0.85),
               kind: 'purple'
             });
           }
-          if (Math.floor(bs.spiralAngle * 2) % 2 === 0) {
+          if (state.stage >= 2 && Math.floor(bs.spiralAngle * 2) % 2 === 0) {
             const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
-            [-0.12, 0, 0.12].forEach((o) => {
+            const lanceOffs = state.stage >= 3 ? [-0.12, 0, 0.12] : [-0.08, 0.08];
+            lanceOffs.forEach((o) => {
               state.enemyBullets.push({
                 x: bs.x,
                 y: bs.y + 28,
-                vx: Math.cos(aim + o) * (baseSpd * 1.12),
-                vy: Math.sin(aim + o) * (baseSpd * 1.12),
+                vx: Math.cos(aim + o) * (baseSpd * 1.08),
+                vy: Math.sin(aim + o) * (baseSpd * 1.08),
                 kind: 'red'
               });
             });
           }
-          bs.patternTimer = Math.max(0.42, 0.62 - state.stage * 0.04);
+          bs.patternTimer = Math.max(0.42, 0.84 - (state.stage - 1) * 0.07);
         } else {
-          // Phase 3 (FINAL OVERDRIVE): Interlocking Double-Helix Ring + Aimed Flak!
-          bs.spiralAngle -= 0.52;
-          const ringCount = 10 + Math.min(6, state.stage * 2);
+          // Phase 3 (FINAL OVERDRIVE): 8-way ring in Round 1 -> up to 16-way double-helix in high rounds!
+          bs.spiralAngle -= 0.48;
+          const ringCount = 6 + Math.min(10, state.stage * 2);
           for (let k = 0; k < ringCount; k++) {
             const ang = bs.spiralAngle + (Math.PI * 2 * k) / ringCount;
-            const spd = k % 2 === 0 ? baseSpd * 0.96 : baseSpd * 0.76;
+            const spd = k % 2 === 0 ? baseSpd * 0.94 : baseSpd * 0.75;
             state.enemyBullets.push({
               x: bs.x,
               y: bs.y + 20,
@@ -2005,7 +2027,7 @@
               kind: k % 2 === 0 ? 'purple' : 'amber'
             });
           }
-          bs.patternTimer = Math.max(0.46, 0.68 - state.stage * 0.04);
+          bs.patternTimer = Math.max(0.45, 0.84 - (state.stage - 1) * 0.07);
         }
       }
 
@@ -2014,7 +2036,7 @@
       }
     }
 
-    // Enemy Bullets (Fair 1945 7.5px cockpit core hitbox!)
+    // Enemy Bullets (Classic 1945 6.0px forgiving cockpit core hitbox!)
     for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
       const eb = state.enemyBullets[i];
       eb.x += eb.vx * dt;
@@ -2023,7 +2045,7 @@
         state.enemyBullets.splice(i, 1);
         continue;
       }
-      if (p && p.invuln <= 0 && Math.hypot(eb.x - p.x, eb.y - p.y) < 7.5) {
+      if (p && p.invuln <= 0 && Math.hypot(eb.x - p.x, eb.y - p.y) < 6.0) {
         state.enemyBullets.splice(i, 1);
         hitPlayer();
       }
