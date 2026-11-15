@@ -991,26 +991,26 @@
       });
     }
 
-    // 2. Sub-Weapon System (LV.2+, gently tuned so enemies appear cleanly before exploding)
+    // 2. Sub-Weapon System (LV.2+, smooth 2 -> 3 -> 4 projectile progression so LV.4 stays strong if hit!)
     if (p.power >= 2 && p.subCd <= 0) {
-      const count = p.power >= 5 ? 4 : 2;
+      const count = p.power >= 5 ? 4 : p.power === 4 ? 3 : 2;
       if (state.fighterType === 'lightning') {
-        p.subCd = p.power >= 5 ? 0.48 : p.power >= 4 ? 0.54 : 0.66;
+        p.subCd = p.power >= 5 ? 0.48 : p.power >= 4 ? 0.52 : 0.65;
         sound.missileLaunch();
-        const offsets = count === 4 ? [-30, -16, 16, 30] : [-20, 20];
+        const offsets = count === 4 ? [-30, -15, 15, 30] : count === 3 ? [-24, 0, 24] : [-20, 20];
         offsets.forEach((ox) => {
           state.bullets.push({
             kind: 'missile',
             x: p.x + ox,
             y: p.y - 6,
-            vx: ox * 2.5,
-            vy: -220,
-            dmg: p.power >= 4 ? 1.55 : 1.28,
+            vx: ox * 2.4,
+            vy: -225,
+            dmg: p.power >= 4 ? 1.56 : 1.30,
             smokeTick: 0
           });
         });
       } else if (state.fighterType === 'skyray') {
-        p.subCd = p.power >= 5 ? 0.34 : p.power >= 4 ? 0.40 : 0.48;
+        p.subCd = p.power >= 5 ? 0.34 : p.power >= 4 ? 0.39 : 0.48;
         sound.laserBeam();
         const offsets = p.power >= 4 ? [-20, 20] : [0];
         offsets.forEach((ox) => {
@@ -1020,16 +1020,16 @@
             y: p.y - 32,
             vx: 0,
             vy: -960,
-            dmg: p.power >= 5 ? 1.75 : 1.50,
+            dmg: p.power >= 5 ? 1.80 : 1.55,
             pierce: true,
             hitSet: new Set()
           });
         });
       } else {
         // J7W Shinden Napalm Rockets
-        p.subCd = p.power >= 5 ? 0.46 : p.power >= 4 ? 0.52 : 0.64;
+        p.subCd = p.power >= 5 ? 0.46 : p.power >= 4 ? 0.50 : 0.63;
         sound.missileLaunch();
-        const offsets = count === 4 ? [-28, -14, 14, 28] : [-18, 18];
+        const offsets = count === 4 ? [-28, -14, 14, 28] : count === 3 ? [-22, 0, 22] : [-18, 18];
         offsets.forEach((ox) => {
           state.bullets.push({
             kind: 'rocket',
@@ -1037,7 +1037,7 @@
             y: p.y - 10,
             vx: ox * 0.5,
             vy: -590,
-            dmg: p.power >= 4 ? 1.68 : 1.42,
+            dmg: p.power >= 4 ? 1.68 : 1.44,
             aoe: true
           });
         });
@@ -1103,24 +1103,32 @@
   }
 
   /* =========================================================================
-   * 6. PROGRESSIVE STAGE ESCALATION, MID-BOSSES & 3-PHASE GIANT BOSSES
+   * 6. SMOOTH PROGRESSIVE STAGE ESCALATION, MID-BOSSES & 3-PHASE BOSSES
    * ========================================================================= */
+  function getStageHpScale(s) {
+    // Matches player LV.1->LV.5 growth in R1-R3, then tapers smoothly (+0.15/round)
+    // once player firepower plateaus at MAX so high-round enemies never feel spongy!
+    const table = [0, 1.00, 1.46, 1.72, 1.90, 2.06, 2.22, 2.38, 2.53];
+    if (s < table.length) return table[s];
+    return 2.53 + (s - 8) * 0.15;
+  }
+
   function spawnEnemyWave() {
-    if (state.bossActive) return;
+    if (state.bossActive) return 0;
 
     state.waveStep++;
     const s = state.stage;
-    // Stage 1 is 1.0x (easy & fun!), then climbs steadily every cleared round!
-    const hpScale = 1 + (s - 1) * 0.48 + Math.max(0, s - 3) * 0.25;
+    const hpScale = getStageHpScale(s);
+    const scoutVy = 126 + Math.min(56, (s - 1) * 9);
 
     // Stage 1-2: 10 waves before Boss; Stage 3+: 12 waves before Boss!
     const bossStep = s <= 2 ? 11 : 13;
     if (state.waveStep >= bossStep) {
       spawnStageBoss();
-      return;
+      return 0;
     }
 
-    // Wave 6: Mid-Stage Vanguard
+    // Wave 6: Mid-Stage Vanguard (gives +0.95s breather afterwards so waves don't pile up)
     if (state.waveStep === 6) {
       showBanner('MID-STAGE VANGUARD', s === 1 ? '적 중형 폭격기 접근 — 파괴 시 파워업!' : '적 중장갑 전폭기 편대 저지선!', s >= 2, 1600);
       if (s === 1) {
@@ -1129,62 +1137,66 @@
           x: W * 0.5,
           y: -58,
           vx: 22,
-          vy: 58,
-          hp: 22,
-          maxHp: 22,
+          vy: 56,
+          hp: 20,
+          maxHp: 20,
           shootCd: 1.25,
           dropsPower: true,
           score: 1200
         });
       } else {
+        const dualHp = 15.5 * hpScale;
         [W * 0.27, W * 0.73].forEach((gx, idx) => {
           state.enemies.push({
             kind: 'gunship',
             x: gx,
             y: -60 - idx * 24,
-            vx: idx === 0 ? 26 : -26,
-            vy: 56 + s * 3,
-            hp: 23 * hpScale,
-            maxHp: 23 * hpScale,
-            shootCd: 1.05,
+            vx: idx === 0 ? 24 : -24,
+            vy: 54 + Math.min(20, s * 2.5),
+            hp: dualHp,
+            maxHp: dualHp,
+            shootCd: 1.15,
             dropsPower: idx === 0,
             dropsSpecial: idx === 1,
             score: 1800
           });
         });
-        if (s >= 3) {
+        if (s >= 4) {
+          const bHp = 22 * hpScale;
           state.enemies.push({
             kind: 'battleship',
             x: W * 0.5,
             y: -95,
             vx: 0,
-            vy: 46,
-            hp: 30 * hpScale,
-            maxHp: 30 * hpScale,
-            shootCd: 1.15,
+            vy: 45,
+            hp: bHp,
+            maxHp: bHp,
+            shootCd: 1.25,
             ground: true,
             score: 2200
           });
         }
       }
-      return;
+      return 0.95;
     }
 
     const pattern = state.waveStep % 5;
     if (pattern === 1) {
-      // V-Squadron (3 planes in Round 1 -> 5 planes in Round 2-3 -> 7 planes in Round 4+!)
-      const half = s === 1 ? 1 : s <= 3 ? 2 : 3;
-      const cx = 75 + Math.random() * (W - 150);
-      for (let i = -half; i <= half; i++) {
+      // V-Squadron: staggered 3 (R1) -> 4 (R2) -> 5 (R3-R5) -> 6 (R6+)
+      const count = s === 1 ? 3 : s === 2 ? 4 : s <= 5 ? 5 : 6;
+      const cx = 78 + Math.random() * (W - 156);
+      const mid = (count - 1) / 2;
+      for (let i = 0; i < count; i++) {
+        const off = i - mid;
         state.enemies.push({
           kind: 'scout',
-          x: Math.max(26, Math.min(W - 26, cx + i * 36)),
-          y: -26 - Math.abs(i) * 24,
-          vx: s === 1 ? 0 : i * 12,
-          vy: 128 + s * 15,
+          x: Math.max(26, Math.min(W - 26, cx + off * 35)),
+          y: -26 - Math.abs(off) * 22,
+          vx: s === 1 ? 0 : off * 10,
+          vy: scoutVy,
           hp: 3.4 * hpScale,
           maxHp: 3.4 * hpScale,
-          shootCd: Math.max(0.55, 1.85 - s * 0.2) + Math.random() * 0.7,
+          shootCd: Math.max(0.75, 1.9 - (s - 1) * 0.13) + Math.random() * 0.65,
           score: 180
         });
       }
@@ -1196,90 +1208,95 @@
           kind: 'supply',
           x: fromLeft ? 44 + i * 38 : W - 44 - i * 38,
           y: -26 - i * 32,
-          vx: fromLeft ? 42 : -42,
-          vy: 124 + s * 12,
-          hp: 4.5 * hpScale,
-          maxHp: 4.5 * hpScale,
-          shootCd: Math.max(0.65, 1.9 - s * 0.2),
+          vx: fromLeft ? 40 : -40,
+          vy: 120 + Math.min(48, (s - 1) * 8),
+          hp: 4.4 * hpScale,
+          maxHp: 4.4 * hpScale,
+          shootCd: Math.max(0.8, 1.95 - (s - 1) * 0.13),
           dropsPower: i === 2,
           score: 300
         });
       }
     } else if (pattern === 3) {
-      // Heavy Gunship + Escorts
+      // Heavy Gunship + Staggered Escorts (2 in R1-R3 -> 3 in R4-R6 -> 4 in R7+)
       const gx = W * (0.28 + Math.random() * 0.44);
+      const gHp = 20 * hpScale;
       state.enemies.push({
         kind: 'gunship',
         x: gx,
         y: -58,
-        vx: s === 1 ? 0 : (Math.random() < 0.5 ? -1 : 1) * 22,
-        vy: 56 + s * 4,
-        hp: 22 * hpScale,
-        maxHp: 22 * hpScale,
-        shootCd: Math.max(0.75, 1.7 - s * 0.16),
+        vx: s === 1 ? 0 : (Math.random() < 0.5 ? -1 : 1) * 20,
+        vy: 54 + Math.min(20, (s - 1) * 2.8),
+        hp: gHp,
+        maxHp: gHp,
+        shootCd: Math.max(0.95, 1.8 - (s - 1) * 0.11),
         dropsSpecial: Math.random() < 0.58,
         score: 1500
       });
-      const escorts = s === 1 ? [-48, 48] : [-68, -34, 34, 68];
+      const escorts = s <= 3 ? [-48, 48] : s <= 6 ? [-52, 0, 52] : [-64, -32, 32, 64];
       escorts.forEach((ox, idx) => {
         state.enemies.push({
           kind: 'scout',
           x: Math.max(26, Math.min(W - 26, gx + ox)),
           y: -26 - (idx % 2) * 20,
           vx: 0,
-          vy: 122 + s * 14,
+          vy: scoutVy - 4,
           hp: 3.4 * hpScale,
           maxHp: 3.4 * hpScale,
-          shootCd: Math.max(0.65, 1.75 - s * 0.18),
+          shootCd: Math.max(0.8, 1.85 - (s - 1) * 0.12),
           score: 180
         });
       });
     } else if (pattern === 4) {
-      // Naval Battleship + Flanking Scouts
+      // Naval Battleship + Smoothly Staggered Flanking Scouts (2 -> 3 -> 3 -> 4 -> 4 -> 5 -> 5 -> 6)
+      const bHp = 24 * hpScale;
       state.enemies.push({
         kind: 'battleship',
         x: 68 + Math.random() * (W - 136),
         y: -85,
         vx: 0,
-        vy: 46,
-        hp: 28 * hpScale,
-        maxHp: 28 * hpScale,
-        shootCd: Math.max(0.8, 1.8 - s * 0.16),
+        vy: 45,
+        hp: bHp,
+        maxHp: bHp,
+        shootCd: Math.max(0.95, 1.85 - (s - 1) * 0.11),
         ground: true,
         score: 1900
       });
-      const count = s === 1 ? 2 : 3 + Math.min(4, s);
+      const count = s === 1 ? 2 : Math.min(6, 2 + Math.floor(s / 2));
       for (let i = 0; i < count; i++) {
         state.enemies.push({
           kind: 'scout',
           x: i % 2 === 0 ? 38 : W - 38,
           y: -24 - i * 36,
-          vx: i % 2 === 0 ? 54 : -54,
-          vy: 132 + s * 14,
+          vx: i % 2 === 0 ? 50 : -50,
+          vy: scoutVy + 4,
           hp: 3.4 * hpScale,
           maxHp: 3.4 * hpScale,
-          shootCd: Math.max(0.6, 1.7 - s * 0.18),
+          shootCd: Math.max(0.75, 1.8 - (s - 1) * 0.12),
           score: 180
         });
       }
     } else {
-      // Round 1: Single Gunship dropping [S]/[B]; Round 2+: Dual Pincer Gunships!
+      // Round 1: Single Gunship (20 HP); Round 2+: Dual Pincer Gunships (15 * hpScale each so pair isn't 2x spongy!)
       const positions = s === 1 ? [W * 0.5] : [W * 0.27, W * 0.73];
+      const unitHp = (s === 1 ? 20 : 15) * hpScale;
       positions.forEach((gx, idx) => {
         state.enemies.push({
           kind: 'gunship',
           x: gx,
           y: -58 - idx * 32,
-          vx: s === 1 ? 18 : idx === 0 ? 22 : -22,
-          vy: 56 + s * 4,
-          hp: 22 * hpScale,
-          maxHp: 22 * hpScale,
-          shootCd: Math.max(0.75, 1.7 - s * 0.16),
+          vx: s === 1 ? 18 : idx === 0 ? 20 : -20,
+          vy: 54 + Math.min(20, (s - 1) * 2.8),
+          hp: unitHp,
+          maxHp: unitHp,
+          shootCd: Math.max(0.95, 1.8 - (s - 1) * 0.11),
           dropsSpecial: idx === 0,
           score: 1500
         });
       });
+      return s >= 2 ? 0.35 : 0;
     }
+    return 0;
   }
 
   function spawnStageBoss() {
@@ -1299,13 +1316,12 @@
 
     showBanner('🚨 WARNING 🚨', `초거대 결전 요새 [${fullName}] 출현!`, true, 2700);
 
-    // Calibrated to match gently lowered bullet DPS:
-    // Stage 1 (~410 Core HP) -> Stage 2 (~860) -> Stage 3 (~1,450) -> Stage 4 (~2,180) -> Stage 5+!
+    // Smooth linear boss progression (~25s in R1 -> ~32s in R3 -> ~42s in R5 -> ~52s in R7; zero quadratic explosion!)
     const s = state.stage;
     const pwr = state.player ? state.player.power : 1;
-    const stageCoreBase = 410 + (s - 1) * 450 + Math.max(0, s - 2) * 140 * (s - 2);
-    const coreHp = Math.round(stageCoreBase * (1 + (pwr - 1) * 0.08));
-    const turretHp = Math.round((105 + (s - 1) * 120 + Math.max(0, s - 2) * 40) * (1 + (pwr - 1) * 0.06));
+    const stageCoreBase = 370 + (s - 1) * 205;
+    const coreHp = Math.round(stageCoreBase * (1 + (pwr - 1) * 0.05));
+    const turretHp = Math.round((95 + (s - 1) * 58) * (1 + (pwr - 1) * 0.04));
 
     state.boss = {
       bossIdx,
@@ -1317,7 +1333,7 @@
       x: W / 2,
       y: -120,
       targetY: 122,
-      vx: 48 + s * 9,
+      vx: Math.min(96, 48 + (s - 1) * 6),
       hp: coreHp,
       maxHp: coreHp,
       leftTurretHp: turretHp,
@@ -1353,10 +1369,11 @@
         sound.explodeSmall();
         if (Math.random() < 0.28) spawnItem(en.x, en.y, 'medal');
 
-        // Stage 4+ Elite Revenge Bullet only in high stages!
-        if (state.stage >= 4 && state.player && Math.random() < 0.24 && en.y < H * 0.65) {
+        // Elite Revenge Bullet introduced gently from Round 6+ (6% -> 12% -> 18% -> 22% cap)
+        const revChance = state.stage >= 6 ? Math.min(0.22, (state.stage - 5) * 0.06) : 0;
+        if (revChance > 0 && state.player && Math.random() < revChance && en.y < H * 0.62) {
           const aim = Math.atan2(state.player.y - en.y, state.player.x - en.x);
-          const spd = 185 + state.stage * 14;
+          const spd = Math.min(255, 162 + state.stage * 9);
           state.enemyBullets.push({
             x: en.x,
             y: en.y,
@@ -1411,11 +1428,11 @@
       return;
     }
 
-    // 2. Mild Core Armor Reduction while Wing Turrets remain operational (Gentle 75% in Stage 1, 58% in higher stages)
+    // 2. Gradual Core Armor Reduction while Wing Turrets live (78% in R1 -> 75% -> 72% -> 69% -> 66% floor)
     let effectiveDmg = dmg;
     if (!ignoreArmor && (b.leftTurretHp > 0 || b.rightTurretHp > 0)) {
-      const fullArmor = state.stage === 1 ? 0.75 : 0.58;
-      const halfArmor = state.stage === 1 ? 0.88 : 0.78;
+      const fullArmor = Math.max(0.66, 0.78 - (state.stage - 1) * 0.03);
+      const halfArmor = Math.max(0.82, 0.88 - (state.stage - 1) * 0.015);
       const armorRatio = b.leftTurretHp > 0 && b.rightTurretHp > 0 ? fullArmor : halfArmor;
       effectiveDmg = dmg * armorRatio;
       sound.armorClink();
@@ -1875,12 +1892,12 @@
       if (bm.y < -160) state.airStrikeBombers.splice(i, 1);
     }
 
-    // Wave Spawner (Easy relaxed pacing in Round 1, faster each cleared round)
+    // Wave Spawner (Smooth -0.08s step per round + extra breather after Mid-Stage/Dual-Gunship waves)
     if (!state.bossActive) {
       state.waveTimer -= dt;
       if (state.waveTimer <= 0) {
-        spawnEnemyWave();
-        state.waveTimer = Math.max(1.5, 2.75 - (state.stage - 1) * 0.22);
+        const breather = spawnEnemyWave() || 0;
+        state.waveTimer = Math.max(2.05, 2.72 - (state.stage - 1) * 0.08) + breather;
       }
     }
 
@@ -2002,20 +2019,20 @@
         });
       }
 
-      // Progressive Enemy Fire (Easy & slow in Round 1 -> escalates every cleared round!)
+      // Progressive Enemy Fire (Smooth step-by-step escalation across rounds)
       en.shootCd -= dt;
       if (en.shootCd <= 0 && en.y > 24 && en.y < H - 145 && p) {
         const aim = Math.atan2(p.y - en.y, p.x - en.x);
-        const spd = Math.min(340, 138 + (state.stage - 1) * 28);
+        const spd = Math.min(295, 136 + (state.stage - 1) * 18);
 
         if (en.kind === 'gunship') {
-          en.shootCd = Math.max(0.95, 1.95 - (state.stage - 1) * 0.18);
+          en.shootCd = Math.max(1.1, 1.95 - (state.stage - 1) * 0.11);
           const spread =
-            state.stage >= 4
-              ? [-0.36, -0.18, 0, 0.18, 0.36]
-              : state.stage >= 2
-              ? [-0.24, 0, 0.24]
-              : [-0.16, 0.16];
+            state.stage >= 6
+              ? [-0.30, -0.10, 0.10, 0.30]
+              : state.stage >= 3
+              ? [-0.22, 0, 0.22]
+              : [-0.15, 0.15];
           spread.forEach((off, idx) => {
             state.enemyBullets.push({
               x: en.x,
@@ -2026,10 +2043,10 @@
             });
           });
         } else if (en.kind === 'battleship') {
-          en.shootCd = Math.max(1.05, 2.05 - (state.stage - 1) * 0.18);
-          const count = Math.min(4, state.stage);
+          en.shootCd = Math.max(1.15, 2.05 - (state.stage - 1) * 0.11);
+          const count = state.stage === 1 ? 1 : state.stage <= 3 ? 2 : state.stage <= 6 ? 3 : 4;
           for (let k = 0; k < count; k++) {
-            const off = count === 1 ? 0 : (k - (count - 1) / 2) * 0.22;
+            const off = count === 1 ? 0 : (k - (count - 1) / 2) * 0.20;
             state.enemyBullets.push({
               x: en.x,
               y: en.y + 16,
@@ -2039,9 +2056,9 @@
             });
           }
         } else {
-          en.shootCd = Math.max(1.05, 2.35 - (state.stage - 1) * 0.22) + Math.random() * 0.6;
-          if (state.stage >= 3 && en.kind === 'supply') {
-            [-0.14, 0.14].forEach((off) => {
+          en.shootCd = Math.max(1.15, 2.35 - (state.stage - 1) * 0.14) + Math.random() * 0.6;
+          if (state.stage >= 4 && en.kind === 'supply') {
+            [-0.13, 0.13].forEach((off) => {
               state.enemyBullets.push({
                 x: en.x,
                 y: en.y + 18,
@@ -2079,7 +2096,7 @@
       if (bs.y < bs.targetY) {
         bs.y += 82 * dt;
       } else {
-        const spdMult = bs.phase === 3 ? 1.3 : bs.phase === 2 ? 1.12 : 1.0;
+        const spdMult = bs.phase === 3 ? 1.25 : bs.phase === 2 ? 1.10 : 1.0;
         bs.x += bs.vx * spdMult * dt;
         const margin = Math.min(115, W * 0.28);
         if ((bs.x < margin && bs.vx < 0) || (bs.x > W - margin && bs.vx > 0)) bs.vx *= -1;
@@ -2104,13 +2121,13 @@
 
       bs.patternTimer -= dt;
       if (bs.patternTimer <= 0 && p && bs.y >= bs.targetY - 15) {
-        const baseSpd = Math.min(335, 140 + (state.stage - 1) * 26 + (bs.phase - 1) * 18);
+        const baseSpd = Math.min(285, 138 + (state.stage - 1) * 16 + (bs.phase - 1) * 15);
 
-        // Active Wing Turrets: 1-way in Round 1 -> 2-way in Round 2-3 -> 3-way in Round 4+
+        // Active Wing Turrets: 1-way in R1-R2 -> 2-way in R3-R5 -> 3-way in R6+
         const fireTurret = (tx, ty) => {
           const a = Math.atan2(p.y - ty, p.x - tx);
           const offs =
-            state.stage >= 4 ? [-0.15, 0, 0.15] : state.stage >= 2 ? [-0.1, 0.1] : [0];
+            state.stage >= 6 ? [-0.14, 0, 0.14] : state.stage >= 3 ? [-0.09, 0.09] : [0];
           offs.forEach((o) => {
             state.enemyBullets.push({
               x: tx,
@@ -2125,9 +2142,9 @@
         if (bs.rightTurretHp > 0) fireTurret(bs.x + bs.txOff, bs.y + bs.tyOff);
 
         if (bs.phase === 1) {
-          // Phase 1: Sweeping Fan Curtain (4-way gentle fan in Round 1 -> up to 9-way in high rounds)
-          const count = 3 + Math.min(6, state.stage);
-          const spread = 1.15;
+          // Phase 1: Sweeping Fan Curtain (4-way in R1 -> smooth +1 every ~1.5 rounds up to 8-way)
+          const count = 3 + Math.min(5, Math.ceil(state.stage * 0.75));
+          const spread = 1.12;
           const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
           for (let k = 0; k < count; k++) {
             const ang = aim - spread / 2 + (spread * k) / (count - 1);
@@ -2139,11 +2156,11 @@
               kind: k % 2 === 0 ? 'purple' : 'red'
             });
           }
-          bs.patternTimer = Math.max(0.85, 1.58 - (state.stage - 1) * 0.12);
+          bs.patternTimer = Math.max(0.95, 1.58 - (state.stage - 1) * 0.08);
         } else if (bs.phase === 2) {
-          // Phase 2: Rotating Spiral Streams (5 slow arms in Round 1; sniper lance joins in Round 2+!)
-          bs.spiralAngle += 0.42;
-          const arms = 4 + Math.min(6, state.stage);
+          // Phase 2: Rotating Spiral Streams (5 arms in R1-2 -> 6 in R3-4 -> 7 in R5-6 -> up to 9)
+          bs.spiralAngle += 0.40;
+          const arms = 4 + Math.min(5, Math.ceil(state.stage * 0.6));
           for (let k = 0; k < arms; k++) {
             const ang = bs.spiralAngle + (Math.PI * 2 * k) / arms;
             state.enemyBullets.push({
@@ -2156,25 +2173,25 @@
           }
           if (state.stage >= 2 && Math.floor(bs.spiralAngle * 2) % 2 === 0) {
             const aim = Math.atan2(p.y - bs.y, p.x - bs.x);
-            const lanceOffs = state.stage >= 3 ? [-0.12, 0, 0.12] : [-0.08, 0.08];
+            const lanceOffs = state.stage >= 5 ? [-0.12, 0, 0.12] : [-0.08, 0.08];
             lanceOffs.forEach((o) => {
               state.enemyBullets.push({
                 x: bs.x,
                 y: bs.y + 28,
-                vx: Math.cos(aim + o) * (baseSpd * 1.08),
-                vy: Math.sin(aim + o) * (baseSpd * 1.08),
+                vx: Math.cos(aim + o) * (baseSpd * 1.05),
+                vy: Math.sin(aim + o) * (baseSpd * 1.05),
                 kind: 'red'
               });
             });
           }
-          bs.patternTimer = Math.max(0.42, 0.84 - (state.stage - 1) * 0.07);
+          bs.patternTimer = Math.max(0.50, 0.86 - (state.stage - 1) * 0.045);
         } else {
-          // Phase 3 (FINAL OVERDRIVE): 8-way ring in Round 1 -> up to 16-way double-helix in high rounds!
-          bs.spiralAngle -= 0.48;
-          const ringCount = 6 + Math.min(10, state.stage * 2);
+          // Phase 3 (FINAL OVERDRIVE): 8-way ring in R1 -> smooth +1 per round up to 14-way
+          bs.spiralAngle -= 0.45;
+          const ringCount = 6 + Math.min(8, state.stage + 1);
           for (let k = 0; k < ringCount; k++) {
             const ang = bs.spiralAngle + (Math.PI * 2 * k) / ringCount;
-            const spd = k % 2 === 0 ? baseSpd * 0.94 : baseSpd * 0.75;
+            const spd = k % 2 === 0 ? baseSpd * 0.92 : baseSpd * 0.74;
             state.enemyBullets.push({
               x: bs.x,
               y: bs.y + 20,
@@ -2183,7 +2200,7 @@
               kind: k % 2 === 0 ? 'purple' : 'amber'
             });
           }
-          bs.patternTimer = Math.max(0.45, 0.84 - (state.stage - 1) * 0.07);
+          bs.patternTimer = Math.max(0.52, 0.86 - (state.stage - 1) * 0.045);
         }
       }
 
