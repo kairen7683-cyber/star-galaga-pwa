@@ -1,15 +1,15 @@
 {
-  "name": "STAR GALAGA : 레트로 스페이스 슈팅",
-  "short_name": "스타갤러그",
-  "description": "설치 없이 바로 즐기고 홈 화면에 앱으로 추가하는 오프라인 지원 갤러그 아케이드 슈팅 PWA",
+  "name": "STRIKERS 1945 : 스카이 에이스",
+  "short_name": "1945에이스",
+  "description": "아이템 파밍과 5단계 기체·무기 진화, 거대 보스전을 지원하는 갤럭시 최적화 고품질 1945 종스크롤 슈팅 PWA",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#06080e",
-  "theme_color": "#06080e",
+  "background_color": "#07111e",
+  "theme_color": "#07111e",
   "lang": "ko",
-  "categories": ["games", "entertainment"],
+  "categories": ["games", "action", "entertainment"],
   "icons": [
     {
       "src": "./icons/icon-192.png",

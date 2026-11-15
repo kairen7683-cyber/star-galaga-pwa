@@ -1,4 +1,4 @@
-const CACHE_NAME = 'star-galaga-pwa-v1.1.0';
+const CACHE_NAME = 'strikers-1945-pwa-v2.0.0';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first strategy with offline cache fallback so updates apply immediately
+// Network-first strategy so phone browsers & installed PWAs always load the latest update
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 

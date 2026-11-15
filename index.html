@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>STAR GALAGA — 모바일 레트로 갤러그 아케이드 슈팅 PWA</title>
-  <meta name="description" content="스마트폰과 PC에서 설치 없이 가볍게 즐기는 정통 갤러그 스타일 레트로 스페이스 슈팅 게임. 오프라인 플레이 및 홈 화면 PWA 앱 설치를 지원합니다." />
-  <meta name="theme-color" content="#06080e" />
+  <title>STRIKERS 1945 : SKY ACE — 고품질 종스크롤 슈팅 PWA</title>
+  <meta name="description" content="갤럭시 A시리즈 60FPS 완벽 최적화! 아이템 파밍을 통한 기체 외형·총알·유도미사일·레이저 5단계 진화와 거대 보스전을 지원하는 1945 스타일 슈팅 게임" />
+  <meta name="theme-color" content="#07111e" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="스타갤러그" />
+  <meta name="apple-mobile-web-app-title" content="1945에이스" />
 
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" href="./favicon.png" />
@@ -18,24 +18,24 @@
 </head>
 <body>
   <div class="app-shell" id="app-shell">
-    <!-- Top Arcade HUD -->
-    <header class="hud-header" aria-label="게임 상태 표시줄">
+    <!-- Top Tactical HUD -->
+    <header class="hud-header" aria-label="전투 상태 표시줄">
       <div class="hud-stat">
-        <span class="hud-label hud-label--crimson">1UP SCORE</span>
+        <span class="hud-label hud-label--crimson">1P SCORE</span>
         <span class="hud-value" id="score-display">0</span>
       </div>
 
       <div class="hud-stat hud-stat--center">
-        <span class="hud-label hud-label--amber">HIGH SCORE</span>
+        <span class="hud-label hud-label--gold">BEST RECORD</span>
         <span class="hud-value" id="high-score-display">0</span>
       </div>
 
       <div class="hud-stat hud-stat--right">
         <div class="hud-toolbar">
-          <button type="button" class="icon-btn" id="btn-autofire" aria-pressed="true" title="자동 발사 전환">
+          <button type="button" class="icon-btn" id="btn-autofire" aria-pressed="true" title="자동 사격 전환">
             AUTO
           </button>
-          <button type="button" class="icon-btn" id="btn-sound" aria-pressed="true" title="효과음 켜기/끄기">
+          <button type="button" class="icon-btn" id="btn-sound" aria-pressed="true" title="사운드 켜기/끄기">
             🔊
           </button>
           <button type="button" class="icon-btn" id="btn-pause" aria-label="일시정지" title="일시정지">
@@ -45,30 +45,67 @@
       </div>
     </header>
 
-    <!-- Main Space Stage -->
+    <!-- Main Combat Viewport -->
     <main class="stage-viewport" id="stage-viewport">
-      <canvas id="game-canvas" aria-label="스타 갤러그 우주 전투 화면"></canvas>
+      <canvas id="game-canvas" aria-label="스트라이커즈 1945 공중전 화면"></canvas>
 
-      <div class="wave-banner" id="wave-banner" role="status" aria-live="polite">
-        <div class="wave-banner__title" id="wave-banner-title">STAGE 1</div>
-        <div class="wave-banner__sub" id="wave-banner-sub">편대 진입 중 — 전투 준비!</div>
+      <!-- Boss HP Bar -->
+      <div class="boss-hud" id="boss-hud" aria-live="polite">
+        <div class="boss-hud__top">
+          <span id="boss-name-label">WARNING // IRON VALKYRIE</span>
+          <span id="boss-hp-pct">100%</span>
+        </div>
+        <div class="boss-hud__track">
+          <div class="boss-hud__fill" id="boss-hp-fill"></div>
+        </div>
       </div>
 
-      <!-- Start / Title Screen -->
+      <!-- Wave / Warning Banner -->
+      <div class="wave-banner" id="wave-banner" role="status" aria-live="polite">
+        <div class="wave-banner__title" id="wave-banner-title">MISSION 1</div>
+        <div class="wave-banner__sub" id="wave-banner-sub">남태평양 해상 전선 돌파!</div>
+      </div>
+
+      <!-- Hangar / Start Screen -->
       <section class="overlay-screen" id="start-screen" aria-labelledby="main-title">
         <div class="modal-panel">
-          <img src="./icons/icon-192.png" alt="스타 갤러그 전투기 엠블럼" class="brand-emblem" width="72" height="72" />
-          <h1 class="game-title" id="main-title">STAR <span>GALAGA</span></h1>
-          <p class="game-subtitle">손가락 하나로 가볍게 즐기는 정통 편대 스페이스 슈팅</p>
+          <div class="brand-header">
+            <img src="./icons/icon-192.png" alt="1945 스카이 에이스 엠블럼" class="brand-emblem" width="58" height="58" />
+            <div class="brand-titles">
+              <h1 class="game-title" id="main-title">STRIKERS <span>1945</span></h1>
+              <p class="game-subtitle">기체 진화 · 아이템 파밍 · 거대 보스 요격전</p>
+            </div>
+          </div>
+
+          <div class="hangar-label">✈️ 출격 기체 선택 (무기 특성 변경)</div>
+          <div class="fighter-grid" role="radiogroup" aria-label="출격 기체 선택">
+            <button type="button" class="fighter-card is-selected" id="select-lightning" data-fighter="lightning" role="radio" aria-checked="true">
+              <canvas class="fighter-preview" id="preview-lightning" width="64" height="64"></canvas>
+              <span class="fighter-name">P-38 라이트닝</span>
+              <span class="fighter-spec">확산 발칸 + 유도미사일</span>
+            </button>
+
+            <button type="button" class="fighter-card" id="select-skyray" data-fighter="skyray" role="radio" aria-checked="false">
+              <canvas class="fighter-preview" id="preview-skyray" width="64" height="64"></canvas>
+              <span class="fighter-name">XF-5F 스카이레이</span>
+              <span class="fighter-spec">집중 기관포 + 관통레이저</span>
+            </button>
+
+            <button type="button" class="fighter-card" id="select-shinden" data-fighter="shinden" role="radio" aria-checked="false">
+              <canvas class="fighter-preview" id="preview-shinden" width="64" height="64"></canvas>
+              <span class="fighter-name">J7W 신덴</span>
+              <span class="fighter-spec">초고속 기동 + 폭발로켓</span>
+            </button>
+          </div>
 
           <div class="controls-guide">
-            <div>📱 <strong>모바일:</strong> 화면 어디든 <strong>앞뒤·좌우(전방향)</strong> 자유 슬라이드</div>
-            <div>💻 <strong>PC 키보드:</strong> <strong>↑ ↓ ← → (WASD)</strong> 이동 · <strong>Space</strong> 발사 · <strong>B</strong> 폭탄</div>
-            <div>⚡ <strong>특수 기믹:</strong> 듀얼 파이터 합체 · 보스 트랙터 빔 · 3스테이지마다 보너스 편대!</div>
+            <div>📱 <strong>조작:</strong> 화면 어디든 <strong>앞뒤·좌우 전방향</strong> 터치 슬라이드</div>
+            <div>⚡ <strong>진화:</strong> <strong>[P]</strong> 획득 시 기체 장갑·주포·보조무기·윙맨 드론 <strong>5단계 진화!</strong></div>
+            <div>🏅 <strong>아이템:</strong> <strong>[S]</strong> 방어막 · <strong>[B]</strong> 편대 융단폭격 · <strong>골드바</strong> 고득점</div>
           </div>
 
           <button type="button" class="primary-cta" id="btn-start-game">
-            🚀 출격 시작 (INSERT COIN)
+            🔥 스크램블 출격 (START MISSION)
           </button>
 
           <button type="button" class="secondary-cta" id="btn-install-pwa">
@@ -76,7 +113,7 @@
           </button>
 
           <div class="ios-guide-box" id="ios-install-guide" hidden>
-            💡 <strong>아이폰(Safari) 설치 방법:</strong> 브라우저 하단의 <strong>[공유 ↑]</strong> 버튼을 누른 뒤 <strong>[홈 화면에 추가]</strong>를 선택하면 전체화면 앱으로 작동합니다!
+            💡 <strong>아이폰(Safari) 설치:</strong> 하단 <strong>[공유 ↑]</strong> → <strong>[홈 화면에 추가]</strong>를 선택하면 전체화면 앱으로 작동합니다!
           </div>
         </div>
       </section>
@@ -84,14 +121,14 @@
       <!-- Pause Screen -->
       <section class="overlay-screen" id="pause-screen" hidden aria-labelledby="pause-title">
         <div class="modal-panel">
-          <h2 class="game-title" id="pause-title">PAUSED</h2>
-          <p class="game-subtitle">전투가 일시정지되었습니다.</p>
-          <div style="margin-top: 20px;">
+          <h2 class="game-title" id="pause-title">MISSION <span>PAUSED</span></h2>
+          <p class="game-subtitle" style="margin-top: 8px;">작전이 일시 중지되었습니다.</p>
+          <div style="margin-top: 18px;">
             <button type="button" class="primary-cta" id="btn-resume-game">
-              ▶ 전투 재개
+              ▶ 전투 복귀
             </button>
             <button type="button" class="secondary-cta" id="btn-restart-from-pause">
-              🔄 처음부터 다시 시작
+              ✈️ 격납고로 돌아가기 (기체 재선택)
             </button>
           </div>
         </div>
@@ -100,45 +137,56 @@
       <!-- Game Over Screen -->
       <section class="overlay-screen" id="gameover-screen" hidden aria-labelledby="gameover-title">
         <div class="modal-panel">
-          <h2 class="game-title" id="gameover-title">GAME <span>OVER</span></h2>
-          <p class="game-subtitle" id="gameover-record-msg">훌륭한 비행이었습니다, 파일럿!</p>
+          <h2 class="game-title" id="gameover-title">MISSION <span>OVER</span></h2>
+          <p class="game-subtitle" id="gameover-record-msg" style="margin-top: 6px;">치열한 공중전이었습니다, 에이스!</p>
 
           <div class="score-summary">
             <div class="summary-item">
-              <span class="summary-item__label">최종 점수</span>
+              <span class="summary-item__label">최종 스코어</span>
               <span class="summary-item__val" id="final-score">0</span>
             </div>
             <div class="summary-item">
-              <span class="summary-item__label">도달 스테이지</span>
+              <span class="summary-item__label">도달 미션</span>
               <span class="summary-item__val" id="final-stage">1</span>
             </div>
             <div class="summary-item">
-              <span class="summary-item__label">명중률</span>
-              <span class="summary-item__val" id="final-accuracy">0%</span>
+              <span class="summary-item__label">골드 메달</span>
+              <span class="summary-item__val" id="final-medals">0</span>
             </div>
           </div>
 
           <button type="button" class="primary-cta" id="btn-retry-game">
-            🔥 다시 출격하기
+            🔥 즉시 재출격
+          </button>
+          <button type="button" class="secondary-cta" id="btn-back-hangar">
+            ✈️ 다른 기체 선택하기
           </button>
         </div>
       </section>
     </main>
 
-    <!-- Bottom Mobile Tactile Footer -->
-    <footer class="control-deck" aria-label="전투 보조 조작부">
+    <!-- Bottom Tactical Control Deck -->
+    <footer class="control-deck" aria-label="무장 상태 및 폭격 지원">
       <div class="status-strip">
-        <div class="lives-rack" id="lives-rack" title="남은 잔기"></div>
-        <div class="powerup-badges" id="powerup-badges">
-          <span class="power-tag" id="stage-chip">STG 1</span>
+        <div class="status-row">
+          <div class="lives-rack" id="lives-rack" title="남은 잔기"></div>
+          <span class="power-badge" id="stage-chip">MSN 1</span>
+        </div>
+        <div class="power-meter" title="화력 및 기체 진화 단계 (최대 5단계)">
+          <span class="power-badge" id="power-level-text">POW LV.1</span>
+          <div class="power-pips" id="power-pips">
+            <span class="power-pip is-filled"></span>
+            <span class="power-pip"></span>
+            <span class="power-pip"></span>
+            <span class="power-pip"></span>
+            <span class="power-pip"></span>
+          </div>
         </div>
       </div>
 
-      <div class="deck-actions">
-        <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="화면 전체 적 탄막 제거 및 광역 타격">
-          💥 초신성 폭탄 <span id="bomb-count">x2</span>
-        </button>
-      </div>
+      <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="아군 대형 폭격기 편대 호출 (적 탄환 제거 + 광역 폭격)">
+        💣 편대 폭격 <span id="bomb-count">x2</span>
+      </button>
     </footer>
   </div>
 
