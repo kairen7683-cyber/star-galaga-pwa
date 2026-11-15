@@ -486,6 +486,8 @@
   const btnAutoFire = document.getElementById('btn-autofire');
   const btnSound = document.getElementById('btn-sound');
   const btnPause = document.getElementById('btn-pause');
+  const btnFormation = document.getElementById('btn-formation');
+  const formationLabelEl = document.getElementById('formation-label');
   const btnHyperBomb = document.getElementById('btn-hyper-bomb');
 
   const waveBannerEl = document.getElementById('wave-banner');
@@ -533,10 +535,12 @@
     waveTimer: 1.2,
     bossActive: false,
     boss: null,
-    lives: 3,
-    bombs: 2,
+    lives: 4,
+    bombs: 3,
+    formationTime: 0,
+    formationCd: 0,
     autoFire: true,
-    nextLifeScore: 60000,
+    nextLifeScore: 50000,
     terrainScroll: 0,
     screenShake: 0,
     flashAlpha: 0,
@@ -812,9 +816,9 @@
       sound.powerUp(false);
       if (state.bombs < 5) {
         state.bombs++;
-        addScore(500, it.x, it.y, 'B-29 AIR STRIKE +1!', '#fbbf24');
+        addScore(500, it.x, it.y, '폭탄(편대폭격) +1!', '#fbbf24');
       } else {
-        addScore(2500, it.x, it.y, 'BOMB STOCK MAX +2,500!', '#fbbf24');
+        addScore(3000, it.x, it.y, '폭탄 MAX(5발) 보너스 +3,000!', '#fbbf24');
       }
     } else if (it.kind === 'S') {
       sound.powerUp(false);
@@ -853,37 +857,78 @@
       pip.classList.toggle('is-max', pw >= 5);
     });
 
-    bombCountEl.textContent = `x${state.bombs}`;
-    btnHyperBomb.disabled = state.bombs <= 0 || state.mode !== 'playing';
+    bombCountEl.textContent = state.bombs >= 5 ? 'x5(MAX)' : `x${state.bombs}`;
+    btnHyperBomb.style.opacity = state.bombs > 0 && state.mode === 'playing' ? '1' : '0.42';
+
+    if (btnFormation && formationLabelEl) {
+      if (state.formationTime > 0) {
+        btnFormation.classList.add('is-active');
+        btnFormation.disabled = false;
+        formationLabelEl.textContent = `편대중 ${Math.ceil(state.formationTime)}s`;
+      } else if (state.formationCd > 0) {
+        btnFormation.classList.remove('is-active');
+        btnFormation.disabled = true;
+        formationLabelEl.textContent = `대기 ${Math.ceil(state.formationCd)}s`;
+      } else {
+        btnFormation.classList.remove('is-active');
+        btnFormation.disabled = state.mode !== 'playing';
+        formationLabelEl.textContent = '편대비행';
+      }
+    }
   }
 
   /* =========================================================================
-   * 5. CALIBRATED PLAYER WEAPON SYSTEM (Balanced ~24 -> ~70 DPS Curve!)
+   * 5. CALIBRATED PLAYER WEAPON SYSTEM + WINGMAN FORMATION SORTIE
    * ========================================================================= */
   function getDronePositions(p) {
-    if (p.power < 3) return [];
     const bob = Math.sin(p.dronePhase * 4.5) * 4;
+    const positions = [];
+
+    // Permanent [P] LV.3+ Wingmen
     if (p.power === 3) {
-      return [{ x: p.x - 42, y: p.y + 10 + bob }];
+      positions.push({ x: p.x - 42, y: p.y + 10 + bob });
+    } else if (p.power >= 4) {
+      positions.push(
+        { x: p.x - 44, y: p.y + 10 + bob },
+        { x: p.x + 44, y: p.y + 10 - bob }
+      );
     }
-    return [
-      { x: p.x - 46, y: p.y + 10 + bob },
-      { x: p.x + 46, y: p.y + 10 - bob }
-    ];
+
+    // Active [✈️ 편대비행] Tactical Escort Squadron (Summons 2 extra V-formation wingmen!)
+    if (state.formationTime > 0) {
+      if (positions.length === 0) {
+        positions.push(
+          { x: p.x - 44, y: p.y + 8 + bob, escort: true },
+          { x: p.x + 44, y: p.y + 8 - bob, escort: true }
+        );
+      } else if (positions.length === 1) {
+        positions.push(
+          { x: p.x + 42, y: p.y + 10 - bob, escort: true },
+          { x: p.x - 72, y: p.y + 22 - bob, escort: true }
+        );
+      } else {
+        positions.push(
+          { x: p.x - 74, y: p.y + 22 - bob, escort: true },
+          { x: p.x + 74, y: p.y + 22 + bob, escort: true }
+        );
+      }
+    }
+
+    return positions;
   }
 
   function fireWeapons() {
     const p = state.player;
     if (!p) return;
 
-    // 1. Primary Vulcan Stream (Crisp visual upgrades without broken boss-melting DPS)
+    // 1. Primary Vulcan Stream (Gently tuned down ~25% so enemy planes visibly enter & engage, while Bombs feel huge!)
     if (p.mainCd <= 0) {
-      p.mainCd = p.power >= 5 ? 0.095 : 0.105;
+      p.mainCd = p.power >= 5 ? 0.10 : 0.112;
       p.muzzleFlash = 0.045;
       sound.vulcan(p.power);
 
-      const speed = -820;
-      const baseDmg = state.fighterType === 'skyray' ? 0.92 : 0.82;
+      const speed = -800;
+      const baseDmg = state.fighterType === 'skyray' ? 0.66 : 0.60;
       const addVulcan = (ox, oy, vx = 0, dmgScale = 1.0) => {
         state.bullets.push({
           kind: p.power >= 5 ? 'vulcanMax' : 'vulcan',
@@ -897,53 +942,53 @@
       };
 
       if (p.power === 1) {
-        addVulcan(-8, -26, 0, 1.35);
-        addVulcan(8, -26, 0, 1.35);
+        addVulcan(-8, -26, 0, 1.12);
+        addVulcan(8, -26, 0, 1.12);
       } else if (p.power === 2) {
-        addVulcan(0, -30, 0, 1.15);
-        addVulcan(-14, -20, -36, 0.95);
-        addVulcan(14, -20, 36, 0.95);
+        addVulcan(0, -30, 0, 1.0);
+        addVulcan(-14, -20, -36, 0.84);
+        addVulcan(14, -20, 36, 0.84);
       } else if (p.power === 3) {
-        addVulcan(-7, -30, 0, 0.95);
-        addVulcan(7, -30, 0, 0.95);
-        addVulcan(-20, -18, -58, 0.82);
-        addVulcan(20, -18, 58, 0.82);
+        addVulcan(-7, -30, 0, 0.88);
+        addVulcan(7, -30, 0, 0.88);
+        addVulcan(-20, -18, -58, 0.75);
+        addVulcan(20, -18, 58, 0.75);
       } else if (p.power === 4) {
-        addVulcan(0, -32, 0, 0.95);
-        addVulcan(-12, -26, -24, 0.82);
-        addVulcan(12, -26, 24, 0.82);
-        addVulcan(-24, -16, -78, 0.72);
-        addVulcan(24, -16, 78, 0.72);
+        addVulcan(0, -32, 0, 0.88);
+        addVulcan(-12, -26, -24, 0.76);
+        addVulcan(12, -26, 24, 0.76);
+        addVulcan(-24, -16, -78, 0.66);
+        addVulcan(24, -16, 78, 0.66);
       } else {
         // LV.5 MAX OVERDRIVE 6-stream plasma vulcan
-        addVulcan(-6, -34, 0, 0.88);
-        addVulcan(6, -34, 0, 0.88);
-        addVulcan(-16, -26, -38, 0.78);
-        addVulcan(16, -26, 38, 0.78);
-        addVulcan(-28, -16, -96, 0.68);
-        addVulcan(28, -16, 96, 0.68);
+        addVulcan(-6, -34, 0, 0.82);
+        addVulcan(6, -34, 0, 0.82);
+        addVulcan(-16, -26, -38, 0.72);
+        addVulcan(16, -26, 38, 0.72);
+        addVulcan(-28, -16, -96, 0.62);
+        addVulcan(28, -16, 96, 0.62);
       }
 
-      // Autonomous Wingman Drones
+      // Autonomous & Tactical Formation Wingman Drones
       const drones = getDronePositions(p);
       drones.forEach((d) => {
         state.bullets.push({
-          kind: p.power >= 5 ? 'vulcanMax' : 'vulcan',
+          kind: d.escort || p.power >= 5 ? 'vulcanMax' : 'vulcan',
           x: d.x,
           y: d.y - 14,
           vx: 0,
           vy: -780,
-          dmg: 0.55,
+          dmg: d.escort ? 0.48 : 0.42,
           pierce: false
         });
       });
     }
 
-    // 2. Sub-Weapon System (LV.2+)
+    // 2. Sub-Weapon System (LV.2+, gently tuned so enemies appear cleanly before exploding)
     if (p.power >= 2 && p.subCd <= 0) {
       const count = p.power >= 5 ? 4 : 2;
       if (state.fighterType === 'lightning') {
-        p.subCd = p.power >= 5 ? 0.44 : p.power >= 4 ? 0.50 : 0.62;
+        p.subCd = p.power >= 5 ? 0.48 : p.power >= 4 ? 0.54 : 0.66;
         sound.missileLaunch();
         const offsets = count === 4 ? [-30, -16, 16, 30] : [-20, 20];
         offsets.forEach((ox) => {
@@ -953,12 +998,12 @@
             y: p.y - 6,
             vx: ox * 2.5,
             vy: -220,
-            dmg: p.power >= 4 ? 2.1 : 1.75,
+            dmg: p.power >= 4 ? 1.55 : 1.28,
             smokeTick: 0
           });
         });
       } else if (state.fighterType === 'skyray') {
-        p.subCd = p.power >= 5 ? 0.30 : p.power >= 4 ? 0.36 : 0.44;
+        p.subCd = p.power >= 5 ? 0.34 : p.power >= 4 ? 0.40 : 0.48;
         sound.laserBeam();
         const offsets = p.power >= 4 ? [-20, 20] : [0];
         offsets.forEach((ox) => {
@@ -967,15 +1012,15 @@
             x: p.x + ox,
             y: p.y - 32,
             vx: 0,
-            vy: -980,
-            dmg: p.power >= 5 ? 2.4 : 2.1,
+            vy: -960,
+            dmg: p.power >= 5 ? 1.75 : 1.50,
             pierce: true,
             hitSet: new Set()
           });
         });
       } else {
         // J7W Shinden Napalm Rockets
-        p.subCd = p.power >= 5 ? 0.42 : p.power >= 4 ? 0.48 : 0.60;
+        p.subCd = p.power >= 5 ? 0.46 : p.power >= 4 ? 0.52 : 0.64;
         sound.missileLaunch();
         const offsets = count === 4 ? [-28, -14, 14, 28] : [-18, 18];
         offsets.forEach((ox) => {
@@ -984,8 +1029,8 @@
             x: p.x + ox,
             y: p.y - 10,
             vx: ox * 0.5,
-            vy: -600,
-            dmg: p.power >= 4 ? 2.3 : 1.95,
+            vy: -590,
+            dmg: p.power >= 4 ? 1.68 : 1.42,
             aoe: true
           });
         });
@@ -993,27 +1038,59 @@
     }
   }
 
+  function triggerFormationFlight() {
+    if (state.mode !== 'playing' || !state.player) return;
+    if (state.formationTime > 0) return;
+    if (state.formationCd > 0) {
+      addPopup(state.player.x, state.player.y - 32, `편대 재정비 중 (${Math.ceil(state.formationCd)}초)`, '#38bdf8');
+      return;
+    }
+
+    state.formationTime = 7.0;
+    state.formationCd = 12.0;
+    sound.powerUp(true);
+    state.shockwaves.push({ x: state.player.x, y: state.player.y, r: 10, maxR: 95, alpha: 0.9 });
+
+    // Clear close-range enemy bullets on wingman arrival!
+    for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
+      const eb = state.enemyBullets[i];
+      if (Math.hypot(eb.x - state.player.x, eb.y - state.player.y) < 110) {
+        spawnExplosion(eb.x, eb.y, 0.3, 2);
+        state.enemyBullets.splice(i, 1);
+      }
+    }
+
+    showBanner('✈️ WINGMAN FORMATION!', '호위 편대기 7초간 합류 — 집중 지원사격 & 측면 방어!', false, 1400);
+    updateHud();
+  }
+
   function triggerAirStrikeBomb() {
-    if (state.mode !== 'playing' || state.bombs <= 0 || !state.player) return;
+    if (state.mode !== 'playing' || !state.player) return;
+    if (state.bombs <= 0) {
+      sound.armorClink();
+      addPopup(state.player.x, state.player.y - 32, '폭탄 없음! [B] 아이템으로 충전', '#fbbf24');
+      return;
+    }
+
     state.bombs--;
     state.player.invuln = Math.max(state.player.invuln, 3.0);
-    state.screenShake = 0.6;
+    state.screenShake = 0.65;
     state.flashAlpha = 0.5;
     sound.airStrike();
-    showBanner('B-29 CARPET BOMBING!', '아군 슈퍼포트리스 폭격 편대 전술 지원!', false, 1500);
+    showBanner('💣 B-29 편대 폭격 투하!', '적 탄막 전면 소거 & 보스·적군 초토화 폭격!', false, 1550);
 
     if (state.enemyBullets.length > 0) {
       const cleared = state.enemyBullets.length;
       state.enemyBullets.forEach((eb) => spawnExplosion(eb.x, eb.y, 0.32, 2));
       state.enemyBullets = [];
-      addScore(cleared * 50, state.player.x, state.player.y - 36, `BULLET CANCEL +${cleared * 50}!`, '#38bdf8');
+      addScore(cleared * 50, state.player.x, state.player.y - 36, `탄막 제거 +${cleared * 50}!`, '#38bdf8');
     }
 
-    // Capped boss strike quota per B-29 sortie so players cannot 2-bomb skip giant bosses!
+    // Works in BOTH normal waves AND Giant Boss battles!
     state.airStrikeBombers.push(
-      { x: W * 0.5, y: H + 90, vy: -380, dropTick: 0, bossQuota: 85 },
-      { x: W * 0.2, y: H + 165, vy: -380, dropTick: 0.08, bossQuota: 65 },
-      { x: W * 0.8, y: H + 165, vy: -380, dropTick: 0.08, bossQuota: 65 }
+      { x: W * 0.5, y: H + 80, vy: -390, dropTick: 0, bossQuota: 75 },
+      { x: W * 0.22, y: H + 150, vy: -390, dropTick: 0.07, bossQuota: 55 },
+      { x: W * 0.78, y: H + 150, vy: -390, dropTick: 0.07, bossQuota: 55 }
     );
     updateHud();
   }
@@ -1026,7 +1103,7 @@
 
     state.waveStep++;
     const s = state.stage;
-    // Stage 1 is 1.0x (easy & breezy!), then climbs steadily every cleared round!
+    // Stage 1 is 1.0x (easy & fun!), then climbs steadily every cleared round!
     const hpScale = 1 + (s - 1) * 0.48 + Math.max(0, s - 3) * 0.25;
 
     // Stage 1-2: 10 waves before Boss; Stage 3+: 12 waves before Boss!
@@ -1036,19 +1113,19 @@
       return;
     }
 
-    // Wave 6: Mid-Stage Vanguard (Gentle 1 Gunship in Round 1 -> Twin Gunships in Round 2 -> Full Armada in Round 3+!)
+    // Wave 6: Mid-Stage Vanguard
     if (state.waveStep === 6) {
       showBanner('MID-STAGE VANGUARD', s === 1 ? '적 중형 폭격기 접근 — 파괴 시 파워업!' : '적 중장갑 전폭기 편대 저지선!', s >= 2, 1600);
       if (s === 1) {
         state.enemies.push({
           kind: 'gunship',
           x: W * 0.5,
-          y: -68,
+          y: -58,
           vx: 22,
-          vy: 54,
-          hp: 16,
-          maxHp: 16,
-          shootCd: 1.35,
+          vy: 58,
+          hp: 22,
+          maxHp: 22,
+          shootCd: 1.25,
           dropsPower: true,
           score: 1200
         });
@@ -1057,11 +1134,11 @@
           state.enemies.push({
             kind: 'gunship',
             x: gx,
-            y: -70 - idx * 24,
+            y: -60 - idx * 24,
             vx: idx === 0 ? 26 : -26,
-            vy: 54 + s * 3,
-            hp: 19 * hpScale,
-            maxHp: 19 * hpScale,
+            vy: 56 + s * 3,
+            hp: 23 * hpScale,
+            maxHp: 23 * hpScale,
             shootCd: 1.05,
             dropsPower: idx === 0,
             dropsSpecial: idx === 1,
@@ -1072,11 +1149,11 @@
           state.enemies.push({
             kind: 'battleship',
             x: W * 0.5,
-            y: -110,
+            y: -95,
             vx: 0,
-            vy: 44,
-            hp: 26 * hpScale,
-            maxHp: 26 * hpScale,
+            vy: 46,
+            hp: 30 * hpScale,
+            maxHp: 30 * hpScale,
             shootCd: 1.15,
             ground: true,
             score: 2200
@@ -1095,28 +1172,28 @@
         state.enemies.push({
           kind: 'scout',
           x: Math.max(26, Math.min(W - 26, cx + i * 36)),
-          y: -32 - Math.abs(i) * 26,
+          y: -26 - Math.abs(i) * 24,
           vx: s === 1 ? 0 : i * 12,
-          vy: 125 + s * 16,
-          hp: 1.5 * hpScale,
-          maxHp: 1.5 * hpScale,
-          shootCd: Math.max(0.55, 1.9 - s * 0.22) + Math.random() * 0.8,
+          vy: 128 + s * 15,
+          hp: 3.4 * hpScale,
+          maxHp: 3.4 * hpScale,
+          shootCd: Math.max(0.55, 1.85 - s * 0.2) + Math.random() * 0.7,
           score: 180
         });
       }
     } else if (pattern === 2) {
-      // Crimson Supply Squadron — Always drops [P] Power-Up so powering up is super fun!
+      // Crimson Supply Squadron — Visibly sweeps across screen & drops [P] Power-Up!
       const fromLeft = Math.random() < 0.5;
       for (let i = 0; i < 4; i++) {
         state.enemies.push({
           kind: 'supply',
           x: fromLeft ? 44 + i * 38 : W - 44 - i * 38,
-          y: -34 - i * 36,
-          vx: fromLeft ? 40 : -40,
-          vy: 122 + s * 12,
-          hp: 2.0 * hpScale,
-          maxHp: 2.0 * hpScale,
-          shootCd: Math.max(0.65, 1.95 - s * 0.2),
+          y: -26 - i * 32,
+          vx: fromLeft ? 42 : -42,
+          vy: 124 + s * 12,
+          hp: 4.5 * hpScale,
+          maxHp: 4.5 * hpScale,
+          shootCd: Math.max(0.65, 1.9 - s * 0.2),
           dropsPower: i === 2,
           score: 300
         });
@@ -1127,13 +1204,13 @@
       state.enemies.push({
         kind: 'gunship',
         x: gx,
-        y: -65,
+        y: -58,
         vx: s === 1 ? 0 : (Math.random() < 0.5 ? -1 : 1) * 22,
-        vy: 54 + s * 4,
-        hp: 16 * hpScale,
-        maxHp: 16 * hpScale,
-        shootCd: Math.max(0.75, 1.75 - s * 0.16),
-        dropsSpecial: Math.random() < 0.55,
+        vy: 56 + s * 4,
+        hp: 22 * hpScale,
+        maxHp: 22 * hpScale,
+        shootCd: Math.max(0.75, 1.7 - s * 0.16),
+        dropsSpecial: Math.random() < 0.58,
         score: 1500
       });
       const escorts = s === 1 ? [-48, 48] : [-68, -34, 34, 68];
@@ -1141,12 +1218,12 @@
         state.enemies.push({
           kind: 'scout',
           x: Math.max(26, Math.min(W - 26, gx + ox)),
-          y: -30 - (idx % 2) * 22,
+          y: -26 - (idx % 2) * 20,
           vx: 0,
-          vy: 120 + s * 14,
-          hp: 1.5 * hpScale,
-          maxHp: 1.5 * hpScale,
-          shootCd: Math.max(0.65, 1.8 - s * 0.18),
+          vy: 122 + s * 14,
+          hp: 3.4 * hpScale,
+          maxHp: 3.4 * hpScale,
+          shootCd: Math.max(0.65, 1.75 - s * 0.18),
           score: 180
         });
       });
@@ -1155,12 +1232,12 @@
       state.enemies.push({
         kind: 'battleship',
         x: 68 + Math.random() * (W - 136),
-        y: -95,
+        y: -85,
         vx: 0,
-        vy: 44,
-        hp: 21 * hpScale,
-        maxHp: 21 * hpScale,
-        shootCd: Math.max(0.8, 1.85 - s * 0.16),
+        vy: 46,
+        hp: 28 * hpScale,
+        maxHp: 28 * hpScale,
+        shootCd: Math.max(0.8, 1.8 - s * 0.16),
         ground: true,
         score: 1900
       });
@@ -1169,28 +1246,28 @@
         state.enemies.push({
           kind: 'scout',
           x: i % 2 === 0 ? 38 : W - 38,
-          y: -28 - i * 40,
+          y: -24 - i * 36,
           vx: i % 2 === 0 ? 54 : -54,
           vy: 132 + s * 14,
-          hp: 1.5 * hpScale,
-          maxHp: 1.5 * hpScale,
-          shootCd: Math.max(0.6, 1.75 - s * 0.18),
+          hp: 3.4 * hpScale,
+          maxHp: 3.4 * hpScale,
+          shootCd: Math.max(0.6, 1.7 - s * 0.18),
           score: 180
         });
       }
     } else {
-      // Round 1: Single Gunship dropping [P]/[S]; Round 2+: Dual Pincer Gunships!
+      // Round 1: Single Gunship dropping [S]/[B]; Round 2+: Dual Pincer Gunships!
       const positions = s === 1 ? [W * 0.5] : [W * 0.27, W * 0.73];
       positions.forEach((gx, idx) => {
         state.enemies.push({
           kind: 'gunship',
           x: gx,
-          y: -65 - idx * 36,
+          y: -58 - idx * 32,
           vx: s === 1 ? 18 : idx === 0 ? 22 : -22,
-          vy: 54 + s * 4,
-          hp: 16 * hpScale,
-          maxHp: 16 * hpScale,
-          shootCd: Math.max(0.75, 1.75 - s * 0.16),
+          vy: 56 + s * 4,
+          hp: 22 * hpScale,
+          maxHp: 22 * hpScale,
+          shootCd: Math.max(0.75, 1.7 - s * 0.16),
           dropsSpecial: idx === 0,
           score: 1500
         });
@@ -1215,13 +1292,13 @@
 
     showBanner('🚨 WARNING 🚨', `초거대 결전 요새 [${fullName}] 출현!`, true, 2700);
 
-    // Smooth Progressive Boss Curve:
-    // Stage 1: Easy & exciting (~480 Core HP) -> Stage 2 (~1,020) -> Stage 3 (~1,680) -> Stage 4 (~2,460) -> Stage 5+!
+    // Calibrated to match gently lowered bullet DPS:
+    // Stage 1 (~410 Core HP) -> Stage 2 (~860) -> Stage 3 (~1,450) -> Stage 4 (~2,180) -> Stage 5+!
     const s = state.stage;
     const pwr = state.player ? state.player.power : 1;
-    const stageCoreBase = 480 + (s - 1) * 520 + Math.max(0, s - 2) * 160 * (s - 2);
+    const stageCoreBase = 410 + (s - 1) * 450 + Math.max(0, s - 2) * 140 * (s - 2);
     const coreHp = Math.round(stageCoreBase * (1 + (pwr - 1) * 0.08));
-    const turretHp = Math.round((130 + (s - 1) * 145 + Math.max(0, s - 2) * 45) * (1 + (pwr - 1) * 0.06));
+    const turretHp = Math.round((105 + (s - 1) * 120 + Math.max(0, s - 2) * 40) * (1 + (pwr - 1) * 0.06));
 
     state.boss = {
       bossIdx,
@@ -1485,6 +1562,7 @@
       sound.unlock();
     }
     if (e.code === 'KeyB' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') triggerAirStrikeBomb();
+    if (e.code === 'KeyF' || e.code === 'KeyC') triggerFormationFlight();
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (state.mode === 'playing') pauseGame();
       else if (state.mode === 'paused') resumeGame();
@@ -1534,26 +1612,49 @@
   canvas.addEventListener('pointerup', stopPointer);
   canvas.addEventListener('pointercancel', stopPointer);
 
-  btnAutoFire.addEventListener('click', () => {
-    sound.unlock();
+  // Multi-Touch Safe Instant Button Trigger:
+  // Fires immediately on pointerdown/touchstart even while another finger is sliding the fighter on #game-canvas!
+  function bindInstantButton(el, fn) {
+    if (!el) return;
+    let lastStamp = 0;
+    const invoke = (e) => {
+      const now = performance.now();
+      if (now - lastStamp < 260) return;
+      lastStamp = now;
+      if (e && e.cancelable) e.preventDefault();
+      if (e) e.stopPropagation();
+      sound.unlock();
+      fn();
+    };
+    el.addEventListener('pointerdown', invoke);
+    el.addEventListener('touchstart', invoke, { passive: false });
+    el.addEventListener('click', (e) => {
+      if (performance.now() - lastStamp < 350) return;
+      invoke(e);
+    });
+  }
+
+  bindInstantButton(btnAutoFire, () => {
     state.autoFire = !state.autoFire;
     btnAutoFire.setAttribute('aria-pressed', String(state.autoFire));
   });
 
-  btnSound.addEventListener('click', () => {
+  bindInstantButton(btnSound, () => {
     sound.enabled = !sound.enabled;
-    if (sound.enabled) sound.unlock();
     btnSound.setAttribute('aria-pressed', String(sound.enabled));
     btnSound.textContent = sound.enabled ? '🔊' : '🔇';
   });
 
-  btnPause.addEventListener('click', () => {
+  bindInstantButton(btnPause, () => {
     if (state.mode === 'playing') pauseGame();
     else if (state.mode === 'paused') resumeGame();
   });
 
-  btnHyperBomb.addEventListener('click', () => {
-    sound.unlock();
+  bindInstantButton(btnFormation, () => {
+    triggerFormationFlight();
+  });
+
+  bindInstantButton(btnHyperBomb, () => {
     triggerAirStrikeBomb();
   });
 
@@ -1569,6 +1670,8 @@
     state.boss = null;
     state.lives = 4;
     state.bombs = 3;
+    state.formationTime = 0;
+    state.formationCd = 0;
     state.nextLifeScore = 50000;
     state.bullets = [];
     state.enemyBullets = [];
@@ -1636,15 +1739,16 @@
     let bestDist = Infinity;
     for (let i = 0; i < state.enemies.length; i++) {
       const en = state.enemies[i];
+      // Only lock onto enemies that have visibly entered the screen!
+      if (en.y < 24) continue;
       const d = Math.hypot(en.x - x, en.y - y);
       if (d < bestDist) {
         bestDist = d;
         best = en;
       }
     }
-    if (state.boss) {
+    if (state.boss && state.boss.y >= 20) {
       const bs = state.boss;
-      // Target live wing turrets first if closer!
       const pts = [{ x: bs.x, y: bs.y }];
       if (bs.leftTurretHp > 0) pts.push({ x: bs.x - bs.txOff, y: bs.y + bs.tyOff });
       if (bs.rightTurretHp > 0) pts.push({ x: bs.x + bs.txOff, y: bs.y + bs.tyOff });
@@ -1675,6 +1779,17 @@
     if (state.screenShake > 0) state.screenShake = Math.max(0, state.screenShake - dt * 1.3);
     if (state.flashAlpha > 0) state.flashAlpha = Math.max(0, state.flashAlpha - dt * 1.9);
 
+    // Wingman Formation Timers
+    if (state.formationTime > 0) {
+      const prevSec = Math.ceil(state.formationTime);
+      state.formationTime = Math.max(0, state.formationTime - dt);
+      if (Math.ceil(state.formationTime) !== prevSec) updateHud();
+    } else if (state.formationCd > 0) {
+      const prevCd = Math.ceil(state.formationCd);
+      state.formationCd = Math.max(0, state.formationCd - dt);
+      if (Math.ceil(state.formationCd) !== prevCd) updateHud();
+    }
+
     const p = state.player;
     if (p) {
       p.dronePhase += dt;
@@ -1702,7 +1817,7 @@
       }
     }
 
-    // Allied B-29 Air-Strike Bombers
+    // Allied B-29 Air-Strike Bombers (Works on BOTH enemy waves AND Giant Stage Bosses!)
     for (let i = state.airStrikeBombers.length - 1; i >= 0; i--) {
       const bm = state.airStrikeBombers[i];
       bm.y += bm.vy * dt;
@@ -1711,11 +1826,30 @@
         bm.dropTick = 0.095;
         spawnExplosion(bm.x + (Math.random() - 0.5) * 95, bm.y - 45, 1.25, 5);
         state.enemyBullets = [];
-        state.enemies.forEach((en) => damageEnemy(en, 8.5));
+        state.enemies.forEach((en) => {
+          if (en.y >= 10) damageEnemy(en, 11.0);
+        });
         if (state.boss && bm.bossQuota > 0) {
+          const bs = state.boss;
           const strike = Math.min(bm.bossQuota, 12);
           bm.bossQuota -= strike;
-          damageBoss(strike, state.boss.x, state.boss.y, true);
+          spawnExplosion(bs.x + (Math.random() - 0.5) * 140, bs.y + (Math.random() - 0.5) * 44, 1.45, 8, true);
+          // Carpet bombs blast both Wing Turrets and Boss Core!
+          if (bs.leftTurretHp > 0) {
+            bs.leftTurretHp -= strike * 0.55;
+            if (bs.leftTurretHp <= 0) {
+              spawnExplosion(bs.x - bs.txOff, bs.y + bs.tyOff, 1.8, 20, true);
+              addScore(3000, bs.x - bs.txOff, bs.y + bs.tyOff, 'LEFT CANNON DESTROYED!', '#38bdf8');
+            }
+          }
+          if (bs.rightTurretHp > 0) {
+            bs.rightTurretHp -= strike * 0.55;
+            if (bs.rightTurretHp <= 0) {
+              spawnExplosion(bs.x + bs.txOff, bs.y + bs.tyOff, 1.8, 20, true);
+              addScore(3000, bs.x + bs.txOff, bs.y + bs.tyOff, 'RIGHT CANNON DESTROYED!', '#38bdf8');
+            }
+          }
+          damageBoss(strike, bs.x, bs.y, true);
         }
       }
       if (bm.y < -160) state.airStrikeBombers.splice(i, 1);
@@ -1767,16 +1901,18 @@
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      if (b.y < -60 || b.y > H + 40 || b.x < -40 || b.x > W + 40) {
+      // Despawn cleanly at top edge so off-screen enemies aren't sniped before appearing!
+      if (b.y < -6 || b.y > H + 40 || b.x < -40 || b.x > W + 40) {
         state.bullets.splice(i, 1);
         continue;
       }
 
       let consumed = false;
 
-      // Hit Enemies
+      // Hit Enemies (Only once enemy plane has visibly entered the screen: en.y >= 24!)
       for (let ei = state.enemies.length - 1; ei >= 0; ei--) {
         const en = state.enemies[ei];
+        if (en.y < 24) continue;
         const hitR = en.kind === 'gunship' ? 42 : en.kind === 'battleship' ? 28 : 23;
         if (Math.abs(b.x - en.x) < hitR && Math.abs(b.y - en.y) < hitR) {
           if (b.pierce) {
@@ -1786,7 +1922,7 @@
           if (b.aoe) {
             spawnExplosion(b.x, b.y, 1.05, 8);
             state.enemies.forEach((other) => {
-              if (other !== en && Math.hypot(other.x - b.x, other.y - b.y) < 68) {
+              if (other !== en && other.y >= 24 && Math.hypot(other.x - b.x, other.y - b.y) < 68) {
                 damageEnemy(other, b.dmg * 0.6);
               }
             });
@@ -1799,8 +1935,8 @@
         }
       }
 
-      // Hit Giant Boss
-      if (!consumed && state.boss) {
+      // Hit Giant Boss (Only once visible on screen!)
+      if (!consumed && state.boss && state.boss.y >= 12) {
         const bs = state.boss;
         if (Math.abs(b.x - bs.x) < bs.w * 0.44 && Math.abs(b.y - bs.y) < bs.h * 0.36) {
           if (!b.pierce || !b.hitSet.has(bs)) {
@@ -2036,7 +2172,8 @@
       }
     }
 
-    // Enemy Bullets (Classic 1945 6.0px forgiving cockpit core hitbox!)
+    // Enemy Bullets (Classic 1945 6.0px cockpit hitbox + Escort Wingman Flank Guard!)
+    const activeDrones = p && state.formationTime > 0 ? getDronePositions(p) : [];
     for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
       const eb = state.enemyBullets[i];
       eb.x += eb.vx * dt;
@@ -2044,6 +2181,19 @@
       if (eb.x < -24 || eb.x > W + 24 || eb.y < -24 || eb.y > H + 24) {
         state.enemyBullets.splice(i, 1);
         continue;
+      }
+      if (activeDrones.length > 0) {
+        let blocked = false;
+        for (let di = 0; di < activeDrones.length; di++) {
+          const dr = activeDrones[di];
+          if (dr.escort && Math.hypot(eb.x - dr.x, eb.y - dr.y) < 16) {
+            spawnExplosion(eb.x, eb.y, 0.28, 2);
+            state.enemyBullets.splice(i, 1);
+            blocked = true;
+            break;
+          }
+        }
+        if (blocked) continue;
       }
       if (p && p.invuln <= 0 && Math.hypot(eb.x - p.x, eb.y - p.y) < 6.0) {
         state.enemyBullets.splice(i, 1);
@@ -2353,9 +2503,19 @@
           ctx.stroke();
         }
 
-        // Autonomous HD Wingman Drones
+        // Autonomous & Formation Sortie HD Wingman Drones
         const drones = getDronePositions(p);
         drones.forEach((d) => {
+          if (d.escort) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.7)';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, 17, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
           ctx.drawImage(HD.drone.img, d.x - HD.drone.w / 2, d.y - HD.drone.h / 2, HD.drone.w, HD.drone.h);
         });
 

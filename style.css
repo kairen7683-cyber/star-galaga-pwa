@@ -349,29 +349,58 @@ body {
   background: var(--accent-gold);
 }
 
+.tactical-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.formation-btn,
 .bomb-btn {
   appearance: none;
-  border: 1px solid hsla(43, 96%, 56%, 0.42);
-  background: linear-gradient(180deg, hsla(43, 96%, 56%, 0.25) 0%, hsla(354, 85%, 52%, 0.28) 100%);
-  color: var(--accent-gold);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.85rem;
-  padding: 9px 14px;
+  font-size: 0.78rem;
+  padding: 9px 10px;
+  min-height: 42px;
   border-radius: 10px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  transition: transform 0.1s ease, opacity 0.15s ease;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition: transform 0.08s ease, opacity 0.15s ease, box-shadow 0.15s ease;
 }
 
+.formation-btn {
+  border: 1px solid hsla(192, 92%, 54%, 0.5);
+  background: linear-gradient(180deg, hsla(192, 92%, 54%, 0.24) 0%, hsla(214, 72%, 28%, 0.42) 100%);
+  color: var(--accent-cyan);
+}
+
+.formation-btn.is-active {
+  border-color: hsl(152, 76%, 52%);
+  background: linear-gradient(180deg, hsla(152, 76%, 48%, 0.34) 0%, hsla(192, 92%, 45%, 0.34) 100%);
+  color: hsl(152, 90%, 72%);
+  box-shadow: 0 0 12px hsla(152, 76%, 48%, 0.35);
+}
+
+.bomb-btn {
+  border: 1px solid hsla(43, 96%, 56%, 0.52);
+  background: linear-gradient(180deg, hsla(43, 96%, 56%, 0.28) 0%, hsla(354, 85%, 52%, 0.32) 100%);
+  color: var(--accent-gold);
+}
+
+.formation-btn:active,
 .bomb-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.93);
 }
 
+.formation-btn:disabled,
 .bomb-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.38;
   cursor: not-allowed;
 }
 

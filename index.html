@@ -116,8 +116,8 @@
 
           <div class="controls-guide">
             <div>📱 <strong>전방향 이동:</strong> 화면 어디든 <strong>앞뒤·좌우 360°</strong> 터치 슬라이드</div>
-            <div>⚡ <strong>5단계 기체 진화:</strong> <strong>[P]</strong> 획득 시 3D 확장 기관포 포드·윙맨 드론 장착</div>
-            <div>💀 <strong>보스 공략:</strong> 좌·우 주포 포탑을 먼저 파괴하면 중앙 코어 장갑 해제!</div>
+            <div>✈️ <strong>편대비행 & 폭탄:</strong> 하단 <strong>[✈️ 편대비행]</strong>(호위기 호출) · <strong>[💣 폭탄]</strong>(보스전도 즉시 발동, 최대 5발)</div>
+            <div>⚡ <strong>5단계 진화:</strong> <strong>[P]</strong> 3단계부터 상시 윙맨 합류 · 보스 날개 포탑 우선 파괴!</div>
           </div>
 
           <button type="button" class="primary-cta" id="btn-start-game">
@@ -223,9 +223,14 @@
         </div>
       </div>
 
-      <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="아군 대형 폭격기 편대 호출 (적 탄환 제거 + 광역 폭격)">
-        💣 편대 폭격 <span id="bomb-count">x3</span>
-      </button>
+      <div class="tactical-actions">
+        <button type="button" class="formation-btn" id="btn-formation" title="호위 편대기 2기 긴급 출격 (쿨타임 12초 무료 지원)">
+          ✈️ <span id="formation-label">편대비행</span>
+        </button>
+        <button type="button" class="bomb-btn" id="btn-hyper-bomb" title="폭탄 투하 = B-29 편대 폭격 (적 탄환 전체 제거 + 보스/적군 광역 폭격, 최대 5발)">
+          💣 폭탄 <span id="bomb-count">x3</span>
+        </button>
+      </div>
     </footer>
   </div>
 
