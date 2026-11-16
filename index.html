@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>STRIKERS 1945 : SKY ACE</title>
-  <meta name="description" content="프리렌더링 3D 리마스터 종스크롤 아케이드 슈팅 게임" />
+  <meta name="description" content="프리렌더링 3D 리마스터 종스크롤 아케이드 슈팅 게임 (실시간 랭킹 & 2인 협동 멀티플레이)" />
   <meta name="theme-color" content="#050b14" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,7 +14,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./style.css?v=3.4.0" />
+  <link rel="stylesheet" href="./style.css?v=3.5.0" />
 
   <script>
     window.__pwaDeferredPrompt = null;
@@ -34,7 +34,10 @@
       <!-- Minimal Floating Top Combat HUD -->
       <header class="hud-header" aria-label="전투 상태">
         <div class="hud-score-group">
-          <span class="hud-stage-tag" id="stage-chip">ROUND 1</span>
+          <div class="hud-top-tags">
+            <span class="hud-stage-tag" id="stage-chip">ROUND 1</span>
+            <span class="hud-coop-badge" id="coop-hud-badge" hidden>2P CO-OP</span>
+          </div>
           <span class="hud-score-val" id="score-display">0</span>
         </div>
 
@@ -103,9 +106,18 @@
       <!-- Sleek Standby / Hangar Title Screen -->
       <section class="standby-screen" id="start-screen" aria-labelledby="main-title">
         <div class="standby-top">
-          <div class="standby-record">
-            <span class="standby-record__label">BEST SCORE</span>
-            <span class="standby-record__val" id="high-score-display">0</span>
+          <div class="standby-topbar">
+            <div class="standby-record">
+              <span class="standby-record__label">BEST SCORE</span>
+              <span class="standby-record__val" id="high-score-display">0</span>
+            </div>
+
+            <button type="button" class="rank-open-btn" id="btn-open-ranking" title="전체 조종사 랭킹 순위표">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 3H18V7C18 10.31 15.31 13 12 13C8.69 13 6 10.31 6 7V3ZM4 5H6V9C4.34 9 3 7.66 3 6V5H4ZM20 5H21V6C21 7.66 19.66 9 18 9V5H20ZM9 16H15V19H18V21H6V19H9V16Z" fill="currentColor" />
+              </svg>
+              <span id="my-rank-badge">랭킹 순위</span>
+            </button>
           </div>
 
           <div class="standby-brand">
@@ -116,6 +128,23 @@
 
         <!-- Center open window lets the live 3D Showcase Fighter & Ocean shine through -->
         <div class="standby-dock">
+          <!-- Pilot Callsign Bar -->
+          <div class="pilot-profile-bar">
+            <label class="pilot-profile-bar__label" for="pilot-callsign-input">파일럿 별명</label>
+            <div class="pilot-profile-bar__field">
+              <input
+                type="text"
+                id="pilot-callsign-input"
+                class="pilot-callsign-input"
+                maxlength="10"
+                placeholder="별명 입력 (예: 에이스)"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="pilot-saved-tag" id="pilot-saved-tag">자동저장</span>
+            </div>
+          </div>
+
           <div class="dock-header">
             <span class="dock-header__title">출격 기체 선택</span>
             <span class="dock-header__spec" id="selected-fighter-desc">확산 발칸 · 유도 미사일</span>
@@ -141,12 +170,120 @@
             </button>
           </div>
 
-          <button type="button" class="primary-cta" id="btn-start-game">
-            출격 개시
-          </button>
+          <div class="sortie-cta-row">
+            <button type="button" class="primary-cta sortie-cta--solo" id="btn-start-game">
+              1인 단독 출격
+            </button>
+            <button type="button" class="coop-cta" id="btn-open-coop">
+              <span class="coop-cta__badge">2P</span>
+              <span>2인 협동 출격</span>
+            </button>
+          </div>
 
           <button type="button" class="quiet-install-btn" id="btn-install-pwa">
             홈 화면에 앱 설치
+          </button>
+        </div>
+      </section>
+
+      <!-- Global Ranking Leaderboard Modal -->
+      <section class="overlay-screen" id="ranking-modal" hidden aria-labelledby="ranking-modal-title">
+        <div class="modal-panel modal-panel--wide">
+          <div class="modal-head-row">
+            <div>
+              <p class="modal-eyebrow">GLOBAL ACE LEADERBOARD</p>
+              <h2 class="modal-title" id="ranking-modal-title">실시간 명예의 전당</h2>
+            </div>
+            <div class="rank-filter-tabs" role="tablist">
+              <button type="button" class="rank-tab is-active" data-rank-mode="all">전체</button>
+              <button type="button" class="rank-tab" data-rank-mode="solo">1인전</button>
+              <button type="button" class="rank-tab" data-rank-mode="coop">2인협동</button>
+            </div>
+          </div>
+
+          <div class="my-rank-summary" id="my-rank-summary">
+            내 최고 기록을 불러오는 중...
+          </div>
+
+          <div class="leaderboard-list" id="leaderboard-list" aria-live="polite">
+            <div class="leaderboard-empty">랭킹 데이터를 불러오는 중...</div>
+          </div>
+
+          <button type="button" class="ghost-cta" id="btn-close-ranking">
+            닫기
+          </button>
+        </div>
+      </section>
+
+      <!-- 2-Player Co-op Squadron Lobby Modal -->
+      <section class="overlay-screen" id="coop-modal" hidden aria-labelledby="coop-modal-title">
+        <div class="modal-panel modal-panel--wide">
+          <p class="modal-eyebrow">2-PLAYER REALTIME SQUADRON</p>
+          <h2 class="modal-title" id="coop-modal-title">2인 편대 협동전 로비</h2>
+          <p class="modal-subtitle" id="coop-status-msg">
+            각자 스마트폰에서 접속해 한 화면에서 함께 적군과 보스를 격추합니다.
+          </p>
+
+          <!-- Step 1: Entry Actions -->
+          <div class="coop-entry-box" id="coop-entry-box">
+            <div class="coop-quick-row">
+              <button type="button" class="primary-cta" id="btn-coop-create">
+                방 만들기 (4자리 코드 생성)
+              </button>
+              <button type="button" class="secondary-cta" id="btn-coop-quick">
+                빠른 매칭 입장
+              </button>
+            </div>
+
+            <div class="coop-join-row">
+              <input
+                type="tel"
+                id="coop-code-input"
+                class="coop-code-input"
+                maxlength="4"
+                placeholder="4자리 방 코드"
+                inputmode="numeric"
+              />
+              <button type="button" class="coop-join-btn" id="btn-coop-join">
+                코드로 입장
+              </button>
+            </div>
+
+            <div class="open-rooms-wrap" id="open-rooms-wrap" hidden>
+              <span class="open-rooms-label">현재 대기 중인 편대 방 (터치하여 즉시 합류)</span>
+              <div class="open-rooms-list" id="open-rooms-list"></div>
+            </div>
+          </div>
+
+          <!-- Step 2: Active Room Waiting / Ready Box -->
+          <div class="coop-room-box" id="coop-room-box" hidden>
+            <div class="coop-code-banner">
+              <span class="coop-code-banner__label">편대 방 코드</span>
+              <strong class="coop-code-banner__code" id="coop-room-code-display">----</strong>
+              <span class="coop-code-banner__hint">함께할 친구에게 이 4자리 숫자를 알려주세요</span>
+            </div>
+
+            <div class="coop-slots-grid">
+              <div class="coop-slot-card is-filled" id="coop-slot-1">
+                <span class="coop-slot-tag">1P 편대장</span>
+                <strong class="coop-slot-name" id="coop-slot1-name">대기 중...</strong>
+                <span class="coop-slot-fighter" id="coop-slot1-fighter">P-38 라이트닝</span>
+              </div>
+
+              <div class="coop-slot-card" id="coop-slot-2">
+                <span class="coop-slot-tag">2P 윙맨</span>
+                <strong class="coop-slot-name" id="coop-slot2-name">합류 대기 중...</strong>
+                <span class="coop-slot-fighter" id="coop-slot2-fighter">입장 시 자동 표시</span>
+              </div>
+            </div>
+
+            <button type="button" class="primary-cta" id="btn-coop-launch" disabled>
+              2인 합류 대기 중...
+            </button>
+          </div>
+
+          <button type="button" class="ghost-cta" id="btn-close-coop">
+            로비 닫기
           </button>
         </div>
       </section>
@@ -201,9 +338,9 @@
         </div>
       </section>
 
-      <!-- Clean Game Over Modal -->
+      <!-- Clean Game Over Modal (with Instant Rank Report) -->
       <section class="overlay-screen" id="gameover-screen" hidden aria-labelledby="gameover-title">
-        <div class="modal-panel">
+        <div class="modal-panel modal-panel--wide">
           <p class="modal-eyebrow">MISSION REPORT</p>
           <h2 class="modal-title" id="gameover-title">작전 종료</h2>
           <p class="modal-subtitle" id="gameover-record-msg">수고하셨습니다, 파일럿.</p>
@@ -218,22 +355,27 @@
               <span class="summary-item__val" id="final-stage">1</span>
             </div>
             <div class="summary-item">
-              <span class="summary-item__label">MEDALS</span>
-              <span class="summary-item__val" id="final-medals">0</span>
+              <span class="summary-item__label">RANK</span>
+              <span class="summary-item__val" id="final-medals">-</span>
             </div>
           </div>
 
-          <button type="button" class="primary-cta" id="btn-retry-game">
-            즉시 재출격
-          </button>
-          <button type="button" class="secondary-cta" id="btn-back-hangar">
-            기체 변경
-          </button>
+          <div class="gameover-Btn-row">
+            <button type="button" class="primary-cta" id="btn-retry-game">
+              즉시 재출격
+            </button>
+            <button type="button" class="secondary-cta" id="btn-gameover-ranking">
+              전체 랭킹 순위 보기
+            </button>
+            <button type="button" class="ghost-cta" id="btn-back-hangar">
+              대기 화면으로
+            </button>
+          </div>
         </div>
       </section>
     </main>
   </div>
 
-  <script src="./game.js?v=3.4.1"></script>
+  <script src="./game.js?v=3.5.0"></script>
 </body>
 </html>

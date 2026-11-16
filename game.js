@@ -459,11 +459,11 @@
 
     HD.ready = true;
     renderHangarPreviews();
-    btnStartGame.textContent = '출격 개시';
+    btnStartGame.textContent = '1인 단독 출격';
   }
 
   /* =========================================================================
-   * 4. DOM ELEMENTS, PWA INSTALL SYSTEM & GAME STATE
+   * 4. DOM ELEMENTS, PILOT PROFILE, ONLINE RANKING & 2P CO-OP SYSTEM
    * ========================================================================= */
   const sound = new SoundEngine();
   const appShellEl = document.getElementById('app-shell');
@@ -476,6 +476,7 @@
   const highScoreEl = document.getElementById('high-score-display');
   const livesRackEl = document.getElementById('lives-rack');
   const stageChipEl = document.getElementById('stage-chip');
+  const coopHudBadgeEl = document.getElementById('coop-hud-badge');
   const powerTextEl = document.getElementById('power-level-text');
   const powerPipsEl = document.getElementById('power-pips');
   const bombCountEl = document.getElementById('bomb-count');
@@ -509,6 +510,38 @@
   const btnRestartPause = document.getElementById('btn-restart-from-pause');
   const btnRetryGame = document.getElementById('btn-retry-game');
   const btnBackHangar = document.getElementById('btn-back-hangar');
+  const btnGameoverRanking = document.getElementById('btn-gameover-ranking');
+
+  // Pilot Callsign, Ranking & 2P Co-op Elements
+  const callsignInputEl = document.getElementById('pilot-callsign-input');
+  const pilotSavedTagEl = document.getElementById('pilot-saved-tag');
+  const btnOpenRanking = document.getElementById('btn-open-ranking');
+  const myRankBadgeEl = document.getElementById('my-rank-badge');
+  const rankingModalEl = document.getElementById('ranking-modal');
+  const myRankSummaryEl = document.getElementById('my-rank-summary');
+  const leaderboardListEl = document.getElementById('leaderboard-list');
+  const btnCloseRanking = document.getElementById('btn-close-ranking');
+
+  const btnOpenCoop = document.getElementById('btn-open-coop');
+  const coopModalEl = document.getElementById('coop-modal');
+  const coopStatusMsgEl = document.getElementById('coop-status-msg');
+  const coopEntryBoxEl = document.getElementById('coop-entry-box');
+  const coopRoomBoxEl = document.getElementById('coop-room-box');
+  const btnCoopCreate = document.getElementById('btn-coop-create');
+  const btnCoopQuick = document.getElementById('btn-coop-quick');
+  const coopCodeInputEl = document.getElementById('coop-code-input');
+  const btnCoopJoin = document.getElementById('btn-coop-join');
+  const openRoomsWrapEl = document.getElementById('open-rooms-wrap');
+  const openRoomsListEl = document.getElementById('open-rooms-list');
+  const coopRoomCodeDisplayEl = document.getElementById('coop-room-code-display');
+  const coopSlot1CardEl = document.getElementById('coop-slot-1');
+  const coopSlot2CardEl = document.getElementById('coop-slot-2');
+  const coopSlot1NameEl = document.getElementById('coop-slot1-name');
+  const coopSlot1FighterEl = document.getElementById('coop-slot1-fighter');
+  const coopSlot2NameEl = document.getElementById('coop-slot2-name');
+  const coopSlot2FighterEl = document.getElementById('coop-slot2-fighter');
+  const btnCoopLaunch = document.getElementById('btn-coop-launch');
+  const btnCloseCoop = document.getElementById('btn-close-coop');
 
   // PWA Install Elements
   const btnInstallPwa = document.getElementById('btn-install-pwa');
@@ -520,10 +553,81 @@
   const btnCloseInstallModal = document.getElementById('btn-close-install-modal');
 
   const STORAGE_KEY = 'strikers_1945_ace_highscore_v3';
+  const PILOT_ID_KEY = 'strikers_1945_pilot_id_v1';
+  const CALLSIGN_KEY = 'strikers_1945_callsign_v1';
+  const ONLINE_BASE = 'https://crusader-caterer-overeater.ngrok-free.dev/api/strikers1945';
+  const ONLINE_WS = 'wss://crusader-caterer-overeater.ngrok-free.dev/api/strikers1945/ws';
+  const FIGHTER_NAMES = {
+    lightning: 'P-38 라이트닝',
+    skyray: 'XF-5F 스카이레이',
+    shinden: 'J7W 신덴'
+  };
+
+  let pilotId = localStorage.getItem(PILOT_ID_KEY);
+  if (!pilotId) {
+    pilotId = 'pilot_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
+    localStorage.setItem(PILOT_ID_KEY, pilotId);
+  }
+  let pilotCallsign = (localStorage.getItem(CALLSIGN_KEY) || '').trim();
+  if (!pilotCallsign) {
+    pilotCallsign = '에이스' + Math.floor(100 + Math.random() * 900);
+    localStorage.setItem(CALLSIGN_KEY, pilotCallsign);
+  }
+  if (callsignInputEl) {
+    callsignInputEl.value = pilotCallsign;
+    callsignInputEl.addEventListener('input', () => {
+      const cleaned = callsignInputEl.value.trim().slice(0, 10);
+      pilotCallsign = cleaned || '에이스';
+      localStorage.setItem(CALLSIGN_KEY, pilotCallsign);
+      if (pilotSavedTagEl) {
+        pilotSavedTagEl.textContent = '저장됨 ✓';
+        pilotSavedTagEl.style.color = '#fbbf24';
+      }
+      if (coopState.ws && coopState.ws.readyState === 1 && coopState.roomCode) {
+        coopSend({ type: 'select_fighter', fighter: state.fighterType, callsign: pilotCallsign });
+      }
+    });
+  }
+
   let W = 380;
   let H = 640;
   let dpr = 1;
   let bannerTimer = null;
+
+  // Deterministic PRNG for synchronized 2-Player Co-op enemy waves!
+  let rngSeed = Date.now() % 2147483647;
+  function setWaveSeed(seedVal) {
+    rngSeed = (Math.abs(Number(seedVal) || 1945) % 2147483646) + 1;
+  }
+  function waveRand() {
+    if (!coopState.active) return Math.random();
+    rngSeed = (rngSeed * 48271) % 2147483647;
+    return (rngSeed - 1) / 2147483646;
+  }
+
+  const coopState = {
+    active: false,
+    ws: null,
+    roomCode: '',
+    mySlot: 1,
+    seed: 1945,
+    syncTimer: 0,
+    partner: {
+      present: false,
+      callsign: 'WINGMAN',
+      fighter: 'skyray',
+      x: 190,
+      y: 520,
+      targetX: 190,
+      targetY: 520,
+      bank: 0,
+      power: 1,
+      lives: 4,
+      shield: false,
+      invuln: 0,
+      fireCd: 0
+    }
+  };
 
   const state = {
     mode: 'title',
@@ -560,6 +664,360 @@
   };
 
   highScoreEl.textContent = state.highScore.toLocaleString();
+
+  /* --- Online Leaderboard Fetch & Score Submit --- */
+  let currentRankMode = 'all';
+
+  async function fetchLeaderboard(modeFilter = currentRankMode) {
+    currentRankMode = modeFilter;
+    document.querySelectorAll('.rank-tab').forEach((t) => {
+      t.classList.toggle('is-active', t.dataset.rankMode === modeFilter);
+    });
+    try {
+      const res = await fetch(
+        `${ONLINE_BASE}/leaderboard?mode=${encodeURIComponent(modeFilter)}&pilot_id=${encodeURIComponent(pilotId)}&_=${Date.now()}`,
+        { headers: { 'ngrok-skip-browser-warning': '1' } }
+      );
+      if (!res.ok) throw new Error('Network error');
+      const data = await res.json();
+      renderLeaderboardData(data);
+      return data;
+    } catch (_) {
+      if (leaderboardListEl) {
+        leaderboardListEl.innerHTML = `<div class="leaderboard-empty">오프라인 상태입니다. 내 최고 기록: ${state.highScore.toLocaleString()}점</div>`;
+      }
+      return null;
+    }
+  }
+
+  function renderLeaderboardData(data) {
+    if (!data) return;
+    if (data.my_best && myRankBadgeEl) {
+      myRankBadgeEl.textContent = `내 순위 #${data.my_best.rank}`;
+    }
+    if (myRankSummaryEl) {
+      if (data.my_best) {
+        myRankSummaryEl.innerHTML =
+          `<span><strong>${data.my_best.callsign}</strong> 최고 기록</span>` +
+          `<strong>#${data.my_best.rank}위 · ${Number(data.my_best.score).toLocaleString()}점 (R${data.my_best.stage})</strong>`;
+      } else {
+        myRankSummaryEl.innerHTML =
+          `<span>파일럿 <strong>${pilotCallsign}</strong></span>` +
+          `<span>첫 출격 시 실시간 순위가 등록됩니다</span>`;
+      }
+    }
+    if (!leaderboardListEl) return;
+    const rows = data.rankings || [];
+    if (rows.length === 0) {
+      leaderboardListEl.innerHTML = '<div class="leaderboard-empty">아직 등록된 기록이 없습니다.</div>';
+      return;
+    }
+    leaderboardListEl.innerHTML = rows
+      .map((r) => {
+        const isMe = r.pilot_id === pilotId;
+        const fLabel = FIGHTER_NAMES[r.fighter] || 'P-38';
+        const modeTag = r.mode === 'coop' ? `2P협동${r.partner_callsign ? ' (with ' + r.partner_callsign + ')' : ''}` : '1인전';
+        return (
+          `<div class="leaderboard-row${isMe ? ' is-me' : ''}">` +
+          `<span class="lb-rank">${r.rank}</span>` +
+          `<div class="lb-pilot">` +
+          `<span class="lb-callsign">${r.callsign}${isMe ? ' · 나' : ''}</span>` +
+          `<span class="lb-meta">ROUND ${r.stage} · ${fLabel} · ${modeTag}</span>` +
+          `</div>` +
+          `<span class="lb-score">${Number(r.score).toLocaleString()}</span>` +
+          `</div>`
+        );
+      })
+      .join('');
+  }
+
+  async function submitOnlineScore() {
+    if (state.score <= 0) return;
+    try {
+      const res = await fetch(`${ONLINE_BASE}/score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': '1'
+        },
+        body: JSON.stringify({
+          pilot_id: pilotId,
+          callsign: pilotCallsign,
+          score: state.score,
+          stage: state.stage,
+          fighter: state.fighterType,
+          mode: coopState.active ? 'coop' : 'solo',
+          partner_callsign: coopState.active && coopState.partner.present ? coopState.partner.callsign : ''
+        })
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderLeaderboardData(data);
+      if (data.my_best && finalMedalsEl) {
+        finalMedalsEl.textContent = `#${data.my_best.rank}위`;
+      }
+    } catch (_) {}
+  }
+
+  // Initial background rank check on app open
+  fetchLeaderboard('all');
+
+  if (btnOpenRanking) {
+    btnOpenRanking.addEventListener('click', () => {
+      sound.unlock();
+      sound.medal();
+      rankingModalEl.hidden = false;
+      fetchLeaderboard(currentRankMode);
+    });
+  }
+  if (btnGameoverRanking) {
+    btnGameoverRanking.addEventListener('click', () => {
+      sound.unlock();
+      rankingModalEl.hidden = false;
+      fetchLeaderboard('all');
+    });
+  }
+  if (btnCloseRanking) {
+    btnCloseRanking.addEventListener('click', () => {
+      rankingModalEl.hidden = true;
+    });
+  }
+  document.querySelectorAll('.rank-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      sound.unlock();
+      fetchLeaderboard(tab.dataset.rankMode);
+    });
+  });
+
+  /* --- 2-Player Real-Time Co-op WebSocket System --- */
+  function coopSend(payload) {
+    if (coopState.ws && coopState.ws.readyState === 1) {
+      try {
+        coopState.ws.send(JSON.stringify(payload));
+      } catch (_) {}
+    }
+  }
+
+  async function refreshOpenCoopRooms() {
+    try {
+      const res = await fetch(`${ONLINE_BASE}/rooms?_=${Date.now()}`, {
+        headers: { 'ngrok-skip-browser-warning': '1' }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = data.open_rooms || [];
+      if (openRoomsWrapEl && openRoomsListEl) {
+        if (list.length === 0) {
+          openRoomsWrapEl.hidden = true;
+        } else {
+          openRoomsWrapEl.hidden = false;
+          openRoomsListEl.innerHTML = list
+            .map(
+              (rm) =>
+                `<button type="button" class="open-room-chip" data-join-code="${rm.code}">` +
+                `<strong>#${rm.code}</strong> ${rm.host_callsign} 대기 중` +
+                `</button>`
+            )
+            .join('');
+          openRoomsListEl.querySelectorAll('.open-room-chip').forEach((chip) => {
+            chip.addEventListener('click', () => {
+              connectCoopRoom('join', chip.dataset.joinCode);
+            });
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  function updateCoopLobbyUI(roomData) {
+    if (!roomData) return;
+    coopEntryBoxEl.hidden = true;
+    coopRoomBoxEl.hidden = false;
+    coopRoomCodeDisplayEl.textContent = roomData.code || '----';
+
+    const p1 = roomData.players && roomData.players['1'];
+    const p2 = roomData.players && roomData.players['2'];
+
+    if (p1) {
+      coopSlot1CardEl.classList.add('is-filled');
+      coopSlot1NameEl.textContent = p1.callsign + (coopState.mySlot === 1 ? ' (나)' : '');
+      coopSlot1FighterEl.textContent = FIGHTER_NAMES[p1.fighter] || 'P-38 라이트닝';
+    } else {
+      coopSlot1CardEl.classList.remove('is-filled');
+      coopSlot1NameEl.textContent = '대기 중...';
+      coopSlot1FighterEl.textContent = '-';
+    }
+
+    if (p2) {
+      coopSlot2CardEl.classList.add('is-filled');
+      coopSlot2NameEl.textContent = p2.callsign + (coopState.mySlot === 2 ? ' (나)' : '');
+      coopSlot2FighterEl.textContent = FIGHTER_NAMES[p2.fighter] || 'XF-5F 스카이레이';
+    } else {
+      coopSlot2CardEl.classList.remove('is-filled');
+      coopSlot2NameEl.textContent = '합류 대기 중...';
+      coopSlot2FighterEl.textContent = '4자리 코드로 입장 가능';
+    }
+
+    const otherSlot = coopState.mySlot === 1 ? p2 : p1;
+    if (otherSlot) {
+      coopState.partner.present = true;
+      coopState.partner.callsign = otherSlot.callsign;
+      coopState.partner.fighter = otherSlot.fighter || 'skyray';
+      coopStatusMsgEl.textContent = `${otherSlot.callsign} 파일럿과 편대 연결 완료! 아래 출격 버튼을 누르면 동시 출격합니다.`;
+      btnCoopLaunch.disabled = false;
+      btnCoopLaunch.textContent = '2인 편대 동시 출격!';
+    } else {
+      coopState.partner.present = false;
+      coopStatusMsgEl.textContent = '상대방 폰에서 [2인 협동 출격] → 위 4자리 방 코드를 입력하면 즉시 연결됩니다.';
+      btnCoopLaunch.disabled = true;
+      btnCoopLaunch.textContent = '2P 파트너 합류 대기 중...';
+    }
+  }
+
+  function connectCoopRoom(actionType, codeStr = '') {
+    sound.unlock();
+    if (coopState.ws) {
+      try {
+        coopState.ws.close();
+      } catch (_) {}
+    }
+    coopStatusMsgEl.textContent = '편대 작전 서버에 연결 중...';
+    const ws = new WebSocket(ONLINE_WS);
+    coopState.ws = ws;
+
+    ws.addEventListener('open', () => {
+      coopSend({
+        type: actionType,
+        code: codeStr,
+        callsign: pilotCallsign,
+        fighter: state.fighterType
+      });
+    });
+
+    ws.addEventListener('message', (ev) => {
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch (_) {
+        return;
+      }
+      if (msg.type === 'error') {
+        coopStatusMsgEl.textContent = msg.message || '방 입장에 실패했습니다.';
+        return;
+      }
+      if (msg.type === 'joined') {
+        coopState.roomCode = msg.code;
+        coopState.mySlot = msg.slot;
+        coopState.seed = msg.seed;
+      } else if (msg.type === 'room_state') {
+        updateCoopLobbyUI(msg);
+      } else if (msg.type === 'partner_left') {
+        coopState.partner.present = false;
+        if (state.mode === 'title') {
+          updateCoopLobbyUI(msg.room);
+        } else {
+          showBanner('WINGMAN DISCONNECTED', '파트너 기체가 귀환하여 단독 작전으로 전환합니다.', false, 1800);
+        }
+      } else if (msg.type === 'coop_launch') {
+        coopState.seed = msg.seed;
+        const p1 = msg.players && msg.players['1'];
+        const p2 = msg.players && msg.players['2'];
+        const other = coopState.mySlot === 1 ? p2 : p1;
+        if (other) {
+          coopState.partner.present = true;
+          coopState.partner.callsign = other.callsign;
+          coopState.partner.fighter = other.fighter || 'skyray';
+        }
+        coopModalEl.hidden = true;
+        startNewGame(true);
+      } else if (msg.type === 'p_state' && coopState.active) {
+        const pt = coopState.partner;
+        pt.present = true;
+        pt.targetX = Math.max(26, Math.min(W - 26, (msg.nx || 0.5) * W));
+        pt.targetY = Math.max(58, Math.min(H - 38, (msg.ny || 0.8) * H));
+        pt.bank = msg.bank || 0;
+        pt.power = msg.power || 1;
+        pt.lives = typeof msg.lives === 'number' ? msg.lives : pt.lives;
+        pt.shield = Boolean(msg.shield);
+        pt.fighter = msg.fighter || pt.fighter;
+        pt.callsign = msg.callsign || pt.callsign;
+        if (typeof msg.score === 'number' && msg.score > state.score) {
+          state.score = msg.score;
+          if (state.score > state.highScore) {
+            state.highScore = state.score;
+            localStorage.setItem(STORAGE_KEY, String(state.highScore));
+          }
+          scoreEl.textContent = state.score.toLocaleString();
+          highScoreEl.textContent = state.highScore.toLocaleString();
+        }
+      } else if (msg.type === 'p_event' && coopState.active) {
+        if (msg.ev === 'bomb') {
+          triggerAirStrikeBomb(true);
+        } else if (msg.ev === 'formation') {
+          triggerFormationFlight(true);
+        } else if (msg.ev === 'enemy_kill') {
+          const target = state.enemies[msg.idx];
+          if (target && !target.dead) {
+            damageEnemy(target, 9999, true);
+          }
+        } else if (msg.ev === 'boss_dmg' && state.boss) {
+          damageBoss(msg.dmg || 2, state.boss.x, state.boss.y, true, true);
+        }
+      }
+    });
+
+    ws.addEventListener('close', () => {
+      if (state.mode === 'title' && !coopModalEl.hidden) {
+        coopStatusMsgEl.textContent = '연결이 종료되었습니다. 다시 방을 만들거나 입장해주세요.';
+      }
+    });
+  }
+
+  if (btnOpenCoop) {
+    btnOpenCoop.addEventListener('click', () => {
+      sound.unlock();
+      sound.medal();
+      coopModalEl.hidden = false;
+      coopEntryBoxEl.hidden = false;
+      coopRoomBoxEl.hidden = true;
+      coopStatusMsgEl.textContent = '각자 스마트폰에서 접속해 한 화면에서 함께 적군과 보스를 격추합니다.';
+      refreshOpenCoopRooms();
+    });
+  }
+  if (btnCoopCreate) {
+    btnCoopCreate.addEventListener('click', () => connectCoopRoom('create'));
+  }
+  if (btnCoopQuick) {
+    btnCoopQuick.addEventListener('click', () => connectCoopRoom('quick'));
+  }
+  if (btnCoopJoin) {
+    btnCoopJoin.addEventListener('click', () => {
+      const code = (coopCodeInputEl.value || '').trim();
+      if (code.length < 4) {
+        coopStatusMsgEl.textContent = '4자리 숫자 방 코드를 입력해주세요.';
+        return;
+      }
+      connectCoopRoom('join', code);
+    });
+  }
+  if (btnCoopLaunch) {
+    btnCoopLaunch.addEventListener('click', () => {
+      sound.unlock();
+      coopSend({ type: 'start_coop' });
+    });
+  }
+  if (btnCloseCoop) {
+    btnCloseCoop.addEventListener('click', () => {
+      coopModalEl.hidden = true;
+      if (coopState.ws) {
+        try {
+          coopState.ws.close();
+        } catch (_) {}
+        coopState.ws = null;
+      }
+      coopState.active = false;
+    });
+  }
 
   /* --- Service Worker & Bulletproof PWA Download Logic --- */
   if ('serviceWorker' in navigator) {
@@ -682,6 +1140,9 @@
       showcaseBank = -0.85;
       if (selectedFighterDescEl && card.dataset.spec) {
         selectedFighterDescEl.textContent = card.dataset.spec;
+      }
+      if (coopState.ws && coopState.ws.readyState === 1 && coopState.roomCode) {
+        coopSend({ type: 'select_fighter', fighter: state.fighterType, callsign: pilotCallsign });
       }
     });
   });
@@ -1045,16 +1506,19 @@
     }
   }
 
-  function triggerFormationFlight() {
+  function triggerFormationFlight(fromPartner = false) {
     if (state.mode !== 'playing' || !state.player) return;
-    if (state.formationTime > 0) return;
-    if (state.formationCd > 0) {
-      addPopup(state.player.x, state.player.y - 32, `편대 재정비 중 (${Math.ceil(state.formationCd)}초)`, '#38bdf8');
-      return;
+    if (!fromPartner) {
+      if (state.formationTime > 0) return;
+      if (state.formationCd > 0) {
+        addPopup(state.player.x, state.player.y - 32, `편대 재정비 중 (${Math.ceil(state.formationCd)}초)`, '#38bdf8');
+        return;
+      }
+      state.formationCd = 12.0;
+      if (coopState.active) coopSend({ type: 'p_event', ev: 'formation' });
     }
 
-    state.formationTime = 7.0;
-    state.formationCd = 12.0;
+    state.formationTime = Math.max(state.formationTime, 7.0);
     sound.powerUp(true);
     state.shockwaves.push({ x: state.player.x, y: state.player.y, r: 10, maxR: 95, alpha: 0.9 });
 
@@ -1067,24 +1531,37 @@
       }
     }
 
-    showBanner('✈️ WINGMAN FORMATION!', '호위 편대기 7초간 합류 — 집중 지원사격 & 측면 방어!', false, 1400);
+    showBanner(
+      fromPartner ? '✈️ PARTNER FORMATION!' : '✈️ WINGMAN FORMATION!',
+      '호위 편대기 7초간 합류 — 집중 지원사격 & 측면 방어!',
+      false,
+      1400
+    );
     updateHud();
   }
 
-  function triggerAirStrikeBomb() {
+  function triggerAirStrikeBomb(fromPartner = false) {
     if (state.mode !== 'playing' || !state.player) return;
-    if (state.bombs <= 0) {
-      sound.armorClink();
-      addPopup(state.player.x, state.player.y - 32, '폭탄 없음! [B] 아이템으로 충전', '#fbbf24');
-      return;
+    if (!fromPartner) {
+      if (state.bombs <= 0) {
+        sound.armorClink();
+        addPopup(state.player.x, state.player.y - 32, '폭탄 없음! [B] 아이템으로 충전', '#fbbf24');
+        return;
+      }
+      state.bombs--;
+      if (coopState.active) coopSend({ type: 'p_event', ev: 'bomb' });
     }
 
-    state.bombs--;
     state.player.invuln = Math.max(state.player.invuln, 3.0);
     state.screenShake = 0.65;
     state.flashAlpha = 0.5;
     sound.airStrike();
-    showBanner('💣 B-29 편대 폭격 투하!', '적 탄막 전면 소거 & 보스·적군 초토화 폭격!', false, 1550);
+    showBanner(
+      fromPartner ? `💣 ${coopState.partner.callsign} 편대 폭격!` : '💣 B-29 편대 폭격 투하!',
+      '적 탄막 전면 소거 & 보스·적군 초토화 폭격!',
+      false,
+      1550
+    );
 
     if (state.enemyBullets.length > 0) {
       const cleared = state.enemyBullets.length;
@@ -1109,8 +1586,8 @@
     // Matches player LV.1->LV.5 growth in R1-R3, then tapers smoothly (+0.15/round)
     // once player firepower plateaus at MAX so high-round enemies never feel spongy!
     const table = [0, 1.00, 1.46, 1.72, 1.90, 2.06, 2.22, 2.38, 2.53];
-    if (s < table.length) return table[s];
-    return 2.53 + (s - 8) * 0.15;
+    const base = s < table.length ? table[s] : 2.53 + (s - 8) * 0.15;
+    return coopState.active && coopState.partner.present ? base * 1.25 : base;
   }
 
   function spawnEnemyWave() {
@@ -1184,7 +1661,7 @@
     if (pattern === 1) {
       // V-Squadron: staggered 3 (R1) -> 4 (R2) -> 5 (R3-R5) -> 6 (R6+)
       const count = s === 1 ? 3 : s === 2 ? 4 : s <= 5 ? 5 : 6;
-      const cx = 78 + Math.random() * (W - 156);
+      const cx = 78 + waveRand() * (W - 156);
       const mid = (count - 1) / 2;
       for (let i = 0; i < count; i++) {
         const off = i - mid;
@@ -1196,13 +1673,13 @@
           vy: scoutVy,
           hp: 3.4 * hpScale,
           maxHp: 3.4 * hpScale,
-          shootCd: Math.max(0.75, 1.9 - (s - 1) * 0.13) + Math.random() * 0.65,
+          shootCd: Math.max(0.75, 1.9 - (s - 1) * 0.13) + waveRand() * 0.65,
           score: 180
         });
       }
     } else if (pattern === 2) {
       // Crimson Supply Squadron — Visibly sweeps across screen & drops [P] Power-Up!
-      const fromLeft = Math.random() < 0.5;
+      const fromLeft = waveRand() < 0.5;
       for (let i = 0; i < 4; i++) {
         state.enemies.push({
           kind: 'supply',
@@ -1219,18 +1696,18 @@
       }
     } else if (pattern === 3) {
       // Heavy Gunship + Staggered Escorts (2 in R1-R3 -> 3 in R4-R6 -> 4 in R7+)
-      const gx = W * (0.28 + Math.random() * 0.44);
+      const gx = W * (0.28 + waveRand() * 0.44);
       const gHp = 20 * hpScale;
       state.enemies.push({
         kind: 'gunship',
         x: gx,
         y: -58,
-        vx: s === 1 ? 0 : (Math.random() < 0.5 ? -1 : 1) * 20,
+        vx: s === 1 ? 0 : (waveRand() < 0.5 ? -1 : 1) * 20,
         vy: 54 + Math.min(20, (s - 1) * 2.8),
         hp: gHp,
         maxHp: gHp,
         shootCd: Math.max(0.95, 1.8 - (s - 1) * 0.11),
-        dropsSpecial: Math.random() < 0.58,
+        dropsSpecial: waveRand() < 0.58,
         score: 1500
       });
       const escorts = s <= 3 ? [-48, 48] : s <= 6 ? [-52, 0, 52] : [-64, -32, 32, 64];
@@ -1252,7 +1729,7 @@
       const bHp = 24 * hpScale;
       state.enemies.push({
         kind: 'battleship',
-        x: 68 + Math.random() * (W - 136),
+        x: 68 + waveRand() * (W - 136),
         y: -85,
         vx: 0,
         vy: 45,
@@ -1319,9 +1796,10 @@
     // Smooth linear boss progression (~25s in R1 -> ~32s in R3 -> ~42s in R5 -> ~52s in R7; zero quadratic explosion!)
     const s = state.stage;
     const pwr = state.player ? state.player.power : 1;
-    const stageCoreBase = 370 + (s - 1) * 205;
+    const coopMult = coopState.active && coopState.partner.present ? 1.45 : 1.0;
+    const stageCoreBase = (370 + (s - 1) * 205) * coopMult;
     const coreHp = Math.round(stageCoreBase * (1 + (pwr - 1) * 0.05));
-    const turretHp = Math.round((95 + (s - 1) * 58) * (1 + (pwr - 1) * 0.04));
+    const turretHp = Math.round((95 + (s - 1) * 58) * coopMult * (1 + (pwr - 1) * 0.04));
 
     state.boss = {
       bossIdx,
@@ -1352,11 +1830,15 @@
     bossHudEl.classList.add('is-active');
   }
 
-  function damageEnemy(en, dmg) {
+  function damageEnemy(en, dmg, fromPartner = false) {
     en.hp -= dmg;
     en.hitFlash = 0.055;
     if (en.hp <= 0 && !en.dead) {
       en.dead = true;
+      if (coopState.active && !fromPartner) {
+        const idx = state.enemies.indexOf(en);
+        if (idx >= 0) coopSend({ type: 'p_event', ev: 'enemy_kill', idx });
+      }
       const isHeavy = en.kind === 'gunship' || en.kind === 'battleship';
       spawnExplosion(en.x, en.y, isHeavy ? 1.55 : 0.85, isHeavy ? 18 : 8, isHeavy);
 
@@ -1393,7 +1875,7 @@
     }
   }
 
-  function damageBoss(dmg, hitX, hitY, ignoreArmor = false) {
+  function damageBoss(dmg, hitX, hitY, ignoreArmor = false, fromPartner = false) {
     const b = state.boss;
     if (!b) return;
     b.hitFlash = 0.045;
@@ -1403,7 +1885,7 @@
     const ty = b.y + b.tyOff;
 
     // 1. Check Destructible Left & Right Heavy Wing Turrets first!
-    if (b.leftTurretHp > 0 && Math.abs(hitX - lx) < 36 && Math.abs(hitY - ty) < 40) {
+    if (!fromPartner && b.leftTurretHp > 0 && Math.abs(hitX - lx) < 36 && Math.abs(hitY - ty) < 40) {
       b.leftTurretHp -= dmg;
       if (b.leftTurretHp <= 0) {
         spawnExplosion(lx, ty, 1.8, 24, true);
@@ -1415,7 +1897,7 @@
       return;
     }
 
-    if (b.rightTurretHp > 0 && Math.abs(hitX - rx) < 36 && Math.abs(hitY - ty) < 40) {
+    if (!fromPartner && b.rightTurretHp > 0 && Math.abs(hitX - rx) < 36 && Math.abs(hitY - ty) < 40) {
       b.rightTurretHp -= dmg;
       if (b.rightTurretHp <= 0) {
         spawnExplosion(rx, ty, 1.8, 24, true);
@@ -1507,6 +1989,7 @@
       state.waveStep = 0;
       state.waveTimer = 3.5;
       updateHud();
+      submitOnlineScore();
 
       const nextBiomes = [
         '남태평양 산호초 요새 해역 — 난이도 상승!',
@@ -1549,11 +2032,12 @@
       updateHud();
       finalScoreEl.textContent = state.score.toLocaleString();
       finalStageEl.textContent = String(state.stage);
-      finalMedalsEl.textContent = String(state.medals);
+      finalMedalsEl.textContent = '집계 중...';
       gameoverMsgEl.textContent =
         state.score >= state.highScore && state.score > 0
-          ? '🏆 최고 기록 달성! 전설적인 1945 스카이 에이스입니다!'
-          : '멋진 비행이었습니다! 다시 출격해 더 높은 라운드에 도전하세요!';
+          ? `🏆 ${pilotCallsign} 파일럿 최고 기록 달성! 실시간 랭킹에 등록되었습니다!`
+          : `${pilotCallsign} 파일럿 수고하셨습니다! 실시간 랭킹에 기록이 반영되었습니다.`;
+      submitOnlineScore();
       setTimeout(() => {
         if (state.mode === 'gameover') gameoverScreenEl.hidden = false;
       }, 800);
@@ -1577,6 +2061,7 @@
   const pointer = { active: false, id: null, lastX: 0, lastY: 0 };
 
   window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
     if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
     if (e.code === 'ArrowUp' || e.code === 'KeyW') keys.up = true;
@@ -1676,15 +2161,32 @@
   });
 
   bindInstantButton(btnFormation, () => {
-    triggerFormationFlight();
+    triggerFormationFlight(false);
   });
 
   bindInstantButton(btnHyperBomb, () => {
-    triggerAirStrikeBomb();
+    triggerAirStrikeBomb(false);
   });
 
-  function startNewGame() {
+  function startNewGame(isCoop = false) {
     resizeCanvas();
+    coopState.active = Boolean(isCoop);
+    if (coopHudBadgeEl) {
+      coopHudBadgeEl.hidden = !coopState.active;
+      if (coopState.active) {
+        coopHudBadgeEl.textContent = `2P #${coopState.roomCode}`;
+      }
+    }
+    if (coopState.active) {
+      setWaveSeed(coopState.seed);
+      coopState.partner.x = coopState.mySlot === 1 ? W * 0.68 : W * 0.32;
+      coopState.partner.y = H - 84;
+      coopState.partner.targetX = coopState.partner.x;
+      coopState.partner.targetY = coopState.partner.y;
+      coopState.partner.power = 1;
+      coopState.partner.lives = 4;
+    }
+
     state.score = 0;
     state.medals = 0;
     state.medalChain = 0;
@@ -1708,6 +2210,9 @@
     state.popups = [];
     state.airStrikeBombers = [];
     state.player = createPlayer();
+    if (coopState.active) {
+      state.player.x = coopState.mySlot === 1 ? W * 0.32 : W * 0.68;
+    }
     state.mode = 'playing';
 
     bossHudEl.classList.remove('is-active');
@@ -1715,13 +2220,27 @@
     pauseScreenEl.hidden = true;
     gameoverScreenEl.hidden = true;
     installModalEl.hidden = true;
+    rankingModalEl.hidden = true;
+    coopModalEl.hidden = true;
 
     updateHud();
-    showBanner('ROUND 1 START', '워밍업 미션 — 적 보급편대의 [P]를 먹고 기체를 진화시켜라!');
+    if (coopState.active && coopState.partner.present) {
+      showBanner('2P SQUADRON SORTIE!', `${pilotCallsign} & ${coopState.partner.callsign} 합동 편대 출격!`);
+    } else {
+      showBanner('ROUND 1 START', '워밍업 미션 — 적 보급편대의 [P]를 먹고 기체를 진화시켜라!');
+    }
   }
 
   function openHangar() {
     state.mode = 'title';
+    coopState.active = false;
+    if (coopHudBadgeEl) coopHudBadgeEl.hidden = true;
+    if (coopState.ws) {
+      try {
+        coopState.ws.close();
+      } catch (_) {}
+      coopState.ws = null;
+    }
     state.boss = null;
     state.bossActive = false;
     state.enemies = [];
@@ -1737,8 +2256,11 @@
     waveBannerEl.classList.remove('is-visible');
     pauseScreenEl.hidden = true;
     gameoverScreenEl.hidden = true;
+    rankingModalEl.hidden = true;
+    coopModalEl.hidden = true;
     startScreenEl.hidden = false;
     updateHud();
+    fetchLeaderboard('all');
   }
 
   function pauseGame() {
@@ -1758,11 +2280,15 @@
 
   btnStartGame.addEventListener('click', () => {
     sound.unlock();
-    startNewGame();
+    startNewGame(false);
   });
   btnRetryGame.addEventListener('click', () => {
     sound.unlock();
-    startNewGame();
+    if (coopState.active && coopState.ws && coopState.ws.readyState === 1) {
+      coopSend({ type: 'start_coop' });
+    } else {
+      startNewGame(false);
+    }
   });
   btnBackHangar.addEventListener('click', () => openHangar());
   btnRestartPause.addEventListener('click', () => openHangar());
@@ -1851,6 +2377,48 @@
 
       if (state.autoFire || keys.shoot) {
         fireWeapons();
+      }
+
+      // 2-Player Co-op: Broadcast our live position/status (~20Hz) & interpolate/fire Partner fighter!
+      if (coopState.active) {
+        coopState.syncTimer -= dt;
+        if (coopState.syncTimer <= 0) {
+          coopState.syncTimer = 0.05;
+          coopSend({
+            type: 'p_state',
+            nx: Number((p.x / W).toFixed(3)),
+            ny: Number((p.y / H).toFixed(3)),
+            bank: Number(p.bank.toFixed(2)),
+            power: p.power,
+            lives: state.lives,
+            shield: p.shield,
+            fighter: state.fighterType,
+            callsign: pilotCallsign,
+            score: state.score
+          });
+        }
+        const pt = coopState.partner;
+        if (pt.present && pt.lives > 0) {
+          pt.x += (pt.targetX - pt.x) * Math.min(1, 16 * dt);
+          pt.y += (pt.targetY - pt.y) * Math.min(1, 16 * dt);
+          pt.fireCd -= dt;
+          if (pt.fireCd <= 0) {
+            pt.fireCd = 0.14;
+            const kind = pt.power >= 4 ? 'vulcanMax' : 'vulcan';
+            const offsets = pt.power >= 3 ? [-12, 0, 12] : [-8, 8];
+            offsets.forEach((ox) => {
+              state.bullets.push({
+                kind,
+                x: pt.x + ox,
+                y: pt.y - 24,
+                vx: ox * 1.4,
+                vy: -790,
+                dmg: 0.42,
+                pierce: false
+              });
+            });
+          }
+        }
       }
     }
 
@@ -2620,6 +3188,75 @@
           ctx.stroke();
           ctx.restore();
         }
+
+        // In 2P Co-op, show subtle callsign tag above our fighter so 1P & 2P are distinct!
+        if (coopState.active) {
+          ctx.font = '700 10px Chakra Petch, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'rgba(2, 6, 23, 0.72)';
+          ctx.fillRect(p.x - 28, p.y + 34, 56, 14);
+          ctx.fillStyle = '#fde047';
+          ctx.fillText(`${coopState.mySlot}P ${pilotCallsign}`, p.x, p.y + 44);
+        }
+      }
+
+      // 8b. Render 2-Player Co-op Partner Fighter + Callsign Tag!
+      if (coopState.active && coopState.partner.present && coopState.partner.lives > 0) {
+        const pt = coopState.partner;
+        const pTier = pt.power >= 4 ? 3 : pt.power >= 2 ? 2 : 1;
+        const pType = HD.fighters[pt.fighter] ? pt.fighter : 'skyray';
+        const pfAsset = HD.fighters[pType][pTier];
+        const pfShadow = HD.fighterShadows[pType][pTier];
+
+        ctx.drawImage(
+          pfShadow,
+          pt.x - (pfAsset.w * 0.85) / 2 + 18,
+          pt.y - (pfAsset.h * 0.85) / 2 + 24,
+          pfAsset.w * 0.85,
+          pfAsset.h * 0.85
+        );
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const pFlame = 16 + (Math.floor(nowMs / 35) % 7);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+        if (pType === 'lightning') {
+          ctx.fillRect(pt.x - 14, pt.y + pfAsset.h * 0.28, 5, pFlame);
+          ctx.fillRect(pt.x + 9, pt.y + pfAsset.h * 0.28, 5, pFlame);
+        } else {
+          ctx.fillRect(pt.x - 6, pt.y + pfAsset.h * 0.34, 12, pFlame);
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.scale(1 - Math.abs(pt.bank) * 0.15, 1);
+        ctx.rotate(pt.bank * 0.11);
+        ctx.drawImage(pfAsset.img, -pfAsset.w / 2, -pfAsset.h / 2, pfAsset.w, pfAsset.h);
+        if (pType === 'lightning') {
+          ctx.drawImage(HD.ov.propBlur, -26, -pfAsset.h * 0.36);
+          ctx.drawImage(HD.ov.propBlur, -2, -pfAsset.h * 0.36);
+        }
+        ctx.restore();
+
+        if (pt.shield) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = 'rgba(52, 211, 153, 0.85)';
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 36, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        const otherSlot = coopState.mySlot === 1 ? 2 : 1;
+        ctx.font = '700 10px Chakra Petch, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.72)';
+        ctx.fillRect(pt.x - 30, pt.y + 34, 60, 14);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(`${otherSlot}P ${pt.callsign}`, pt.x, pt.y + 44);
       }
     }
 

@@ -783,19 +783,479 @@ body {
   color: var(--accent-gold);
 }
 
+.standby-topbar {
+  width: 100%;
+  max-width: 410px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rank-open-btn {
+  appearance: none;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: hsla(215, 45%, 8%, 0.62);
+  border: 1px solid hsla(42, 94%, 58%, 0.42);
+  color: var(--accent-gold);
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.rank-open-btn:active {
+  transform: scale(0.95);
+}
+
+.hud-top-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-coop-badge {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: hsla(160, 84%, 39%, 0.22);
+  border: 1px solid hsla(156, 72%, 55%, 0.55);
+  color: hsl(154, 88%, 74%);
+}
+
+/* Pilot Callsign Profile Bar */
+.pilot-profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px;
+  margin-bottom: 11px;
+  border-radius: 12px;
+  background: hsla(215, 50%, 6%, 0.62);
+  border: 1px solid var(--hairline);
+}
+
+.pilot-profile-bar__label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pilot-profile-bar__field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pilot-callsign-input {
+  width: 100%;
+  max-width: 165px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid hsla(210, 35%, 75%, 0.2);
+  background: hsla(215, 45%, 10%, 0.85);
+  color: var(--accent-gold);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+  outline: none;
+}
+
+.pilot-callsign-input:focus {
+  border-color: var(--accent-gold);
+}
+
+.pilot-saved-tag {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Twin Sortie CTA Row (1P Solo + 2P Co-op) */
+.sortie-cta-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 8px;
+}
+
+.coop-cta {
+  height: 48px;
+  appearance: none;
+  border: 1px solid hsla(196, 90%, 64%, 0.48);
+  border-radius: 13px;
+  padding: 0 12px;
+  background: hsla(202, 56%, 15%, 0.88);
+  color: hsl(196, 95%, 82%);
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  touch-action: manipulation;
+  box-shadow: 0 8px 20px hsla(0, 0%, 0%, 0.4), inset 0 1px 0 hsla(0, 0%, 100%, 0.14);
+}
+
+.coop-cta:active {
+  transform: scale(0.97);
+}
+
+.coop-cta__badge {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: hsla(196, 90%, 56%, 0.22);
+  color: hsl(196, 100%, 78%);
+}
+
+/* Wide Modal & Global Leaderboard Table */
+.modal-panel--wide {
+  max-width: 396px;
+}
+
+.modal-head-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  margin-bottom: 12px;
+}
+
+.rank-filter-tabs {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: hsla(215, 50%, 6%, 0.78);
+  border: 1px solid var(--hairline);
+}
+
+.rank-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.rank-tab.is-active {
+  background: hsla(42, 94%, 58%, 0.18);
+  color: var(--accent-gold);
+}
+
+.my-rank-summary {
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border-radius: 11px;
+  background: hsla(42, 90%, 52%, 0.1);
+  border: 1px solid hsla(42, 94%, 58%, 0.32);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.my-rank-summary strong {
+  color: var(--accent-gold);
+  font-family: var(--font-display);
+}
+
+.leaderboard-list {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding-right: 2px;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: hsla(215, 50%, 6%, 0.66);
+  border: 1px solid var(--hairline);
+  text-align: left;
+}
+
+.leaderboard-row.is-me {
+  background: hsla(42, 90%, 52%, 0.14);
+  border-color: hsla(42, 94%, 58%, 0.55);
+}
+
+.lb-rank {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.leaderboard-row:nth-child(1) .lb-rank {
+  color: hsl(45, 100%, 62%);
+}
+.leaderboard-row:nth-child(2) .lb-rank {
+  color: hsl(210, 25%, 84%);
+}
+.leaderboard-row:nth-child(3) .lb-rank {
+  color: hsl(28, 80%, 64%);
+}
+
+.lb-pilot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-callsign {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-meta {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.lb-score {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-gold);
+}
+
+.leaderboard-empty {
+  padding: 26px 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* 2-Player Co-op Lobby Styles */
+.coop-entry-box {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coop-quick-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 8px;
+}
+
+.coop-quick-row .secondary-cta {
+  margin-top: 0;
+  height: 48px;
+}
+
+.coop-join-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.coop-code-input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 11px;
+  border: 1px solid var(--hairline-strong);
+  background: hsla(215, 50%, 6%, 0.82);
+  color: var(--accent-gold);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-align: center;
+  outline: none;
+}
+
+.coop-join-btn {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 1px solid hsla(196, 90%, 64%, 0.45);
+  background: hsla(202, 56%, 16%, 0.88);
+  color: hsl(196, 95%, 82%);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.open-rooms-wrap {
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: hsla(215, 50%, 6%, 0.62);
+  border: 1px solid var(--hairline);
+  text-align: left;
+}
+
+.open-rooms-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.open-rooms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.open-room-chip {
+  appearance: none;
+  border: 1px solid hsla(196, 90%, 60%, 0.4);
+  background: hsla(202, 56%, 14%, 0.82);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.open-room-chip strong {
+  color: var(--accent-gold);
+  font-family: var(--font-display);
+  margin-right: 4px;
+}
+
+.coop-room-box {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coop-code-banner {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: hsla(215, 50%, 6%, 0.75);
+  border: 1px solid hsla(42, 94%, 58%, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coop-code-banner__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.coop-code-banner__code {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--accent-gold);
+}
+
+.coop-code-banner__hint {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.coop-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.coop-slot-card {
+  padding: 10px;
+  border-radius: 12px;
+  background: hsla(215, 50%, 6%, 0.55);
+  border: 1px dashed var(--hairline-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.coop-slot-card.is-filled {
+  border-style: solid;
+  border-color: hsla(196, 90%, 60%, 0.5);
+  background: hsla(202, 52%, 12%, 0.72);
+}
+
+.coop-slot-tag {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: hsl(196, 90%, 74%);
+}
+
+.coop-slot-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.coop-slot-fighter {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 @media (max-height: 680px) {
   .standby-screen {
-    padding-top: calc(var(--safe-top) + 12px);
-    padding-bottom: calc(var(--safe-bottom) + 12px);
+    padding-top: calc(var(--safe-top) + 10px);
+    padding-bottom: calc(var(--safe-bottom) + 10px);
   }
   .standby-title {
-    font-size: 1.9rem;
+    font-size: 1.85rem;
   }
   .fighter-preview {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
   }
   .standby-dock {
-    padding: 13px;
+    padding: 12px;
+  }
+  .pilot-profile-bar {
+    margin-bottom: 8px;
+    padding: 5px 9px;
   }
 }
+
