@@ -2590,38 +2590,109 @@
 
           pt.fireCd -= dt;
           if (pt.fireCd <= 0) {
-            pt.fireCd = 0.14;
-            const kind = pt.power >= 4 ? 'vulcanMax' : 'vulcan';
-            const offsets = pt.power >= 3 ? [-12, 0, 12] : [-8, 8];
-            offsets.forEach((ox) => {
+            const pw = Math.max(1, Math.min(5, pt.power || 1));
+            pt.fireCd = pw >= 5 ? 0.105 : 0.118;
+            const pType = pt.fighter || 'skyray';
+            const baseDmg = pType === 'skyray' ? 0.66 : 0.60;
+            const kind = pw >= 5 ? 'vulcanMax' : 'vulcan';
+            const addPartnerVulcan = (ox, oy, vx = 0, dmgScale = 1.0) => {
               state.bullets.push({
                 kind,
                 x: pt.x + ox,
-                y: pt.y - 24,
-                vx: ox * 1.4,
-                vy: -790,
-                dmg: 0.44,
+                y: pt.y + oy,
+                vx,
+                vy: -800,
+                dmg: baseDmg * dmgScale,
                 pierce: false
               });
-            });
+            };
+
+            if (pw === 1) {
+              addPartnerVulcan(-8, -26, 0, 1.12);
+              addPartnerVulcan(8, -26, 0, 1.12);
+            } else if (pw === 2) {
+              addPartnerVulcan(0, -30, 0, 1.0);
+              addPartnerVulcan(-14, -20, -36, 0.84);
+              addPartnerVulcan(14, -20, 36, 0.84);
+            } else if (pw === 3) {
+              addPartnerVulcan(-7, -30, 0, 0.88);
+              addPartnerVulcan(7, -30, 0, 0.88);
+              addPartnerVulcan(-20, -18, -58, 0.75);
+              addPartnerVulcan(20, -18, 58, 0.75);
+            } else if (pw === 4) {
+              addPartnerVulcan(0, -32, 0, 0.88);
+              addPartnerVulcan(-12, -26, -24, 0.76);
+              addPartnerVulcan(12, -26, 24, 0.76);
+              addPartnerVulcan(-24, -16, -78, 0.66);
+              addPartnerVulcan(24, -16, 78, 0.66);
+            } else {
+              addPartnerVulcan(-6, -34, 0, 0.82);
+              addPartnerVulcan(6, -34, 0, 0.82);
+              addPartnerVulcan(-16, -26, -38, 0.72);
+              addPartnerVulcan(16, -26, 38, 0.72);
+              addPartnerVulcan(-28, -16, -96, 0.62);
+              addPartnerVulcan(28, -16, 96, 0.62);
+            }
+
+            // Partner LV.3+ Wingman Drones also fire!
+            if (pw === 3) {
+              addPartnerVulcan(-42, -4, 0, 0.7);
+            } else if (pw >= 4) {
+              addPartnerVulcan(-44, -4, 0, 0.7);
+              addPartnerVulcan(44, -4, 0, 0.7);
+            }
           }
 
-          // AI / Partner Homing Sub-Weapon Support
+          // Partner / AI Fighter-Specific Sub-Weapon Evolution (LV.2 ~ LV.5: Missiles / Twin Lasers / Napalm Rockets!)
           pt.missileCd = (pt.missileCd || 0) - dt;
-          if (pt.missileCd <= 0 && pt.power >= 2) {
-            pt.missileCd = 0.58;
-            [-14, 14].forEach((ox) => {
-              state.bullets.push({
-                kind: 'missile',
-                x: pt.x + ox,
-                y: pt.y - 12,
-                vx: ox * 3.5,
-                vy: -360,
-                dmg: 0.72,
-                pierce: false,
-                smokeTick: 0
+          const pwSub = Math.max(1, Math.min(5, pt.power || 1));
+          if (pt.missileCd <= 0 && pwSub >= 2) {
+            const pType = pt.fighter || 'skyray';
+            const count = pwSub >= 5 ? 4 : pwSub === 4 ? 3 : 2;
+            if (pType === 'lightning') {
+              pt.missileCd = pwSub >= 5 ? 0.48 : pwSub >= 4 ? 0.52 : 0.65;
+              const offsets = count === 4 ? [-30, -15, 15, 30] : count === 3 ? [-24, 0, 24] : [-20, 20];
+              offsets.forEach((ox) => {
+                state.bullets.push({
+                  kind: 'missile',
+                  x: pt.x + ox,
+                  y: pt.y - 6,
+                  vx: ox * 2.4,
+                  vy: -225,
+                  dmg: pwSub >= 4 ? 1.56 : 1.30,
+                  smokeTick: 0
+                });
               });
-            });
+            } else if (pType === 'skyray') {
+              pt.missileCd = pwSub >= 5 ? 0.34 : pwSub >= 4 ? 0.39 : 0.48;
+              const offsets = pwSub >= 4 ? [-20, 20] : [0];
+              offsets.forEach((ox) => {
+                state.bullets.push({
+                  kind: 'laser',
+                  x: pt.x + ox,
+                  y: pt.y - 32,
+                  vx: 0,
+                  vy: -960,
+                  dmg: pwSub >= 5 ? 1.80 : 1.55,
+                  pierce: true,
+                  hitSet: new Set()
+                });
+              });
+            } else {
+              pt.missileCd = pwSub >= 5 ? 0.46 : pwSub >= 4 ? 0.50 : 0.63;
+              const offsets = count === 4 ? [-28, -14, 14, 28] : count === 3 ? [-22, 0, 22] : [-18, 18];
+              offsets.forEach((ox) => {
+                state.bullets.push({
+                  kind: 'rocket',
+                  x: pt.x + ox,
+                  y: pt.y - 10,
+                  vx: ox * 0.5,
+                  vy: -590,
+                  dmg: pwSub >= 4 ? 1.68 : 1.44,
+                  aoe: true
+                });
+              });
+            }
           }
         }
       }
@@ -3444,6 +3515,15 @@
         }
         ctx.restore();
 
+        // Render Partner's LV.3+ Wingman Drones on our screen too!
+        const pBob = Math.sin(nowMs * 0.0045) * 4;
+        if (pt.power === 3) {
+          ctx.drawImage(HD.drone.img, pt.x - 42 - HD.drone.w / 2, pt.y + 10 + pBob - HD.drone.h / 2, HD.drone.w, HD.drone.h);
+        } else if (pt.power >= 4) {
+          ctx.drawImage(HD.drone.img, pt.x - 44 - HD.drone.w / 2, pt.y + 10 + pBob - HD.drone.h / 2, HD.drone.w, HD.drone.h);
+          ctx.drawImage(HD.drone.img, pt.x + 44 - HD.drone.w / 2, pt.y + 10 - pBob - HD.drone.h / 2, HD.drone.w, HD.drone.h);
+        }
+
         if (pt.shield) {
           ctx.save();
           ctx.globalCompositeOperation = 'lighter';
@@ -3456,8 +3536,9 @@
         }
 
         const otherSlot = coopState.mySlot === 1 ? 2 : 1;
-        const tagText = pt.aiMode ? `🤖 ${pt.callsign} [AI]` : `${otherSlot}P ${pt.callsign}`;
-        const tagW = Math.max(64, tagText.length * 7.2);
+        const pwTag = (pt.power || 1) >= 5 ? 'MAX' : `LV.${pt.power || 1}`;
+        const tagText = pt.aiMode ? `🤖 ${pt.callsign} [AI·${pwTag}]` : `${otherSlot}P ${pt.callsign} · ${pwTag}`;
+        const tagW = Math.max(72, tagText.length * 6.8);
         ctx.font = '700 10px Chakra Petch, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
