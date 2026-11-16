@@ -543,7 +543,7 @@
   const btnCoopLaunch = document.getElementById('btn-coop-launch');
   const btnCloseCoop = document.getElementById('btn-close-coop');
 
-  // PWA Install Elements
+  // PWA Install & Handedness Layout Elements
   const btnInstallPwa = document.getElementById('btn-install-pwa');
   const btnHudInstall = document.getElementById('btn-hud-install');
   const btnPauseInstall = document.getElementById('btn-pause-install');
@@ -552,9 +552,15 @@
   const btnOpenChrome = document.getElementById('btn-open-chrome');
   const btnCloseInstallModal = document.getElementById('btn-close-install-modal');
 
+  const btnHudSwapHand = document.getElementById('btn-hud-swap-hand');
+  const hudHandLabelEl = document.getElementById('hud-hand-label');
+  const btnStandbyHandLayout = document.getElementById('btn-standby-hand-layout');
+  const btnHandLayout = document.getElementById('btn-hand-layout');
+
   const STORAGE_KEY = 'strikers_1945_ace_highscore_v3';
   const PILOT_ID_KEY = 'strikers_1945_pilot_id_v1';
   const CALLSIGN_KEY = 'strikers_1945_callsign_v1';
+  const HAND_LAYOUT_KEY = 'strikers_1945_hand_layout_v1';
   const ONLINE_BASE = 'https://crusader-caterer-overeater.ngrok-free.dev/api/strikers1945';
   const ONLINE_WS = 'wss://crusader-caterer-overeater.ngrok-free.dev/api/strikers1945/ws';
   const FIGHTER_NAMES = {
@@ -562,6 +568,35 @@
     skyray: 'XF-5F 스카이레이',
     shinden: 'J7W 신덴'
   };
+
+  let handLayout = localStorage.getItem(HAND_LAYOUT_KEY) === 'left' ? 'left' : 'right';
+
+  function applyHandLayout(side, notifyInGame = false) {
+    handLayout = side === 'left' ? 'left' : 'right';
+    localStorage.setItem(HAND_LAYOUT_KEY, handLayout);
+    if (appShellEl) {
+      appShellEl.classList.toggle('is-left-handed', handLayout === 'left');
+    }
+    if (hudHandLabelEl) {
+      hudHandLabelEl.textContent = handLayout === 'left' ? '⇄ 우측으로' : '⇄ 좌측으로';
+    }
+    if (btnStandbyHandLayout) {
+      btnStandbyHandLayout.textContent = handLayout === 'left' ? '스킬: 좌측 배치 ⇄' : '스킬: 우측 배치 ⇄';
+    }
+    if (btnHandLayout) {
+      btnHandLayout.textContent =
+        handLayout === 'left' ? '폭탄·편대비행 위치: 좌측 배치 ⇄' : '폭탄·편대비행 위치: 우측 배치 ⇄';
+    }
+    if (notifyInGame && state.mode === 'playing' && state.player) {
+      addPopup(
+        state.player.x,
+        Math.max(54, state.player.y - 30),
+        handLayout === 'left' ? '스킬 버튼: 좌측 배치!' : '스킬 버튼: 우측 배치!',
+        '#38bdf8'
+      );
+    }
+  }
+  applyHandLayout(handLayout, false);
 
   let pilotId = localStorage.getItem(PILOT_ID_KEY);
   if (!pilotId) {
@@ -625,7 +660,12 @@
       lives: 4,
       shield: false,
       invuln: 0,
-      fireCd: 0
+      fireCd: 0,
+      missileCd: 0,
+      aiMode: false,
+      aiReason: '',
+      lastPacketAt: 0,
+      aiWeavePhase: 0
     }
   };
 
@@ -874,6 +914,70 @@
     }
   }
 
+  function updateCoopHudBadge() {
+    if (!coopHudBadgeEl) return;
+    coopHudBadgeEl.hidden = !coopState.active;
+    if (!coopState.active) return;
+    const pt = coopState.partner;
+    if (pt.aiMode) {
+      coopHudBadgeEl.classList.add('is-ai');
+      coopHudBadgeEl.textContent =
+        pt.aiReason === 'left' ? `2P 🤖 AI윙맨(${pt.callsign})` : `2P 🤖 AI자동(${pt.callsign})`;
+    } else {
+      coopHudBadgeEl.classList.remove('is-ai');
+      coopHudBadgeEl.textContent = `2P #${coopState.roomCode}`;
+    }
+  }
+
+  function switchPartnerToAi(reason) {
+    if (!coopState.active) return;
+    const pt = coopState.partner;
+    const alreadySame = pt.aiMode && pt.aiReason === reason;
+    pt.present = true;
+    pt.lives = Math.max(1, pt.lives || 4);
+    pt.aiMode = true;
+    pt.aiReason = reason;
+    updateCoopHudBadge();
+    if (!alreadySame && state.mode !== 'title') {
+      if (reason === 'left') {
+        showBanner(
+          '🤖 파트너 이탈 — AI 모드 전환!',
+          `${pt.callsign}님이 나가서 AI 윙맨이 기체를 이어받아 끝까지 함께 싸웁니다!`,
+          false,
+          2400
+        );
+        addPopup(pt.x, Math.max(54, pt.y - 32), 'AI 윙맨 가동!', '#34d399');
+      } else {
+        showBanner(
+          '🤖 파트너 일시정지 — AI 자동비행!',
+          `${pt.callsign}님이 잠시 멈춰 AI가 자동으로 전투를 지원합니다!`,
+          false,
+          2200
+        );
+        addPopup(pt.x, Math.max(54, pt.y - 32), 'AI 자동비행 전환!', '#fde047');
+      }
+    }
+  }
+
+  function restorePartnerFromAi() {
+    if (!coopState.active) return;
+    const pt = coopState.partner;
+    if (!pt.aiMode) return;
+    pt.aiMode = false;
+    pt.aiReason = '';
+    pt.lastPacketAt = performance.now();
+    updateCoopHudBadge();
+    if (state.mode !== 'title') {
+      showBanner(
+        '✈️ 파트너 전투 복귀!',
+        `${pt.callsign}님이 돌아와 직접 조종을 재개합니다!`,
+        false,
+        2000
+      );
+      addPopup(pt.x, Math.max(54, pt.y - 32), `${pt.callsign} 복귀!`, '#38bdf8');
+    }
+  }
+
   function connectCoopRoom(actionType, codeStr = '') {
     sound.unlock();
     if (coopState.ws) {
@@ -912,11 +1016,12 @@
       } else if (msg.type === 'room_state') {
         updateCoopLobbyUI(msg);
       } else if (msg.type === 'partner_left') {
-        coopState.partner.present = false;
         if (state.mode === 'title') {
+          coopState.partner.present = false;
           updateCoopLobbyUI(msg.room);
         } else {
-          showBanner('WINGMAN DISCONNECTED', '파트너 기체가 귀환하여 단독 작전으로 전환합니다.', false, 1800);
+          // Keep partner plane active in AI Wingman mode instead of disappearing!
+          switchPartnerToAi('left');
         }
       } else if (msg.type === 'coop_launch') {
         coopState.seed = msg.seed;
@@ -927,20 +1032,29 @@
           coopState.partner.present = true;
           coopState.partner.callsign = other.callsign;
           coopState.partner.fighter = other.fighter || 'skyray';
+          coopState.partner.aiMode = false;
+          coopState.partner.aiReason = '';
+          coopState.partner.lastPacketAt = performance.now();
         }
         coopModalEl.hidden = true;
         startNewGame(true);
       } else if (msg.type === 'p_state' && coopState.active) {
         const pt = coopState.partner;
         pt.present = true;
-        pt.targetX = Math.max(26, Math.min(W - 26, (msg.nx || 0.5) * W));
-        pt.targetY = Math.max(58, Math.min(H - 38, (msg.ny || 0.8) * H));
-        pt.bank = msg.bank || 0;
-        pt.power = msg.power || 1;
-        pt.lives = typeof msg.lives === 'number' ? msg.lives : pt.lives;
-        pt.shield = Boolean(msg.shield);
-        pt.fighter = msg.fighter || pt.fighter;
-        pt.callsign = msg.callsign || pt.callsign;
+        pt.lastPacketAt = performance.now();
+        if (pt.aiMode && pt.aiReason === 'pause') {
+          restorePartnerFromAi();
+        }
+        if (!pt.aiMode) {
+          pt.targetX = Math.max(26, Math.min(W - 26, (msg.nx || 0.5) * W));
+          pt.targetY = Math.max(58, Math.min(H - 38, (msg.ny || 0.8) * H));
+          pt.bank = msg.bank || 0;
+          pt.power = msg.power || 1;
+          pt.lives = typeof msg.lives === 'number' ? Math.max(1, msg.lives) : pt.lives;
+          pt.shield = Boolean(msg.shield);
+          pt.fighter = msg.fighter || pt.fighter;
+          pt.callsign = msg.callsign || pt.callsign;
+        }
         if (typeof msg.score === 'number' && msg.score > state.score) {
           state.score = msg.score;
           if (state.score > state.highScore) {
@@ -951,7 +1065,11 @@
           highScoreEl.textContent = state.highScore.toLocaleString();
         }
       } else if (msg.type === 'p_event' && coopState.active) {
-        if (msg.ev === 'bomb') {
+        if (msg.ev === 'pause') {
+          switchPartnerToAi('pause');
+        } else if (msg.ev === 'resume') {
+          restorePartnerFromAi();
+        } else if (msg.ev === 'bomb') {
           triggerAirStrikeBomb(true);
         } else if (msg.ev === 'formation') {
           triggerFormationFlight(true);
@@ -969,6 +1087,8 @@
     ws.addEventListener('close', () => {
       if (state.mode === 'title' && !coopModalEl.hidden) {
         coopStatusMsgEl.textContent = '연결이 종료되었습니다. 다시 방을 만들거나 입장해주세요.';
+      } else if (coopState.active && state.mode !== 'title') {
+        switchPartnerToAi('left');
       }
     });
   }
@@ -2042,14 +2162,18 @@
         if (state.mode === 'gameover') gameoverScreenEl.hidden = false;
       }, 800);
     } else {
-      // Forgiving recovery: only drop 1 power level & eject a [P] item!
+      // Remember exact pre-death coordinates under the player's finger and respawn right there!
+      const respawnX = Math.max(26, Math.min(W - 26, p.x));
+      const respawnY = Math.max(58, Math.min(H - 38, p.y));
+      // Forgiving recovery: only drop 1 power level & eject a [P] item right above respawn spot!
       if (p.power > 1) {
         p.power = Math.max(1, p.power - 1);
-        spawnItem(W / 2, H * 0.44, 'P');
+        spawnItem(respawnX, Math.max(66, respawnY - 88), 'P');
       }
-      p.x = W / 2;
-      p.y = H - 76;
+      p.x = respawnX;
+      p.y = respawnY;
       p.invuln = 3.2;
+      addPopup(respawnX, Math.max(48, respawnY - 28), '제자리 부활!', '#fde047');
       updateHud();
     }
   }
@@ -2155,6 +2279,14 @@
     btnSound.textContent = sound.enabled ? '사운드 켜짐' : '사운드 꺼짐';
   });
 
+  const toggleHandSide = () => {
+    sound.medal();
+    applyHandLayout(handLayout === 'left' ? 'right' : 'left', true);
+  };
+  bindInstantButton(btnHudSwapHand, toggleHandSide);
+  bindInstantButton(btnStandbyHandLayout, toggleHandSide);
+  bindInstantButton(btnHandLayout, toggleHandSide);
+
   bindInstantButton(btnPause, () => {
     if (state.mode === 'playing') pauseGame();
     else if (state.mode === 'paused') resumeGame();
@@ -2168,15 +2300,16 @@
     triggerAirStrikeBomb(false);
   });
 
+  // Auto-pause & notify 2P partner if user switches app or locks screen
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.mode === 'playing') {
+      pauseGame();
+    }
+  });
+
   function startNewGame(isCoop = false) {
     resizeCanvas();
     coopState.active = Boolean(isCoop);
-    if (coopHudBadgeEl) {
-      coopHudBadgeEl.hidden = !coopState.active;
-      if (coopState.active) {
-        coopHudBadgeEl.textContent = `2P #${coopState.roomCode}`;
-      }
-    }
     if (coopState.active) {
       setWaveSeed(coopState.seed);
       coopState.partner.x = coopState.mySlot === 1 ? W * 0.68 : W * 0.32;
@@ -2185,7 +2318,12 @@
       coopState.partner.targetY = coopState.partner.y;
       coopState.partner.power = 1;
       coopState.partner.lives = 4;
+      coopState.partner.aiMode = false;
+      coopState.partner.aiReason = '';
+      coopState.partner.lastPacketAt = performance.now();
+      coopState.partner.aiWeavePhase = 0;
     }
+    updateCoopHudBadge();
 
     state.score = 0;
     state.medals = 0;
@@ -2267,6 +2405,9 @@
     if (state.mode !== 'playing') return;
     state.mode = 'paused';
     pauseScreenEl.hidden = false;
+    if (coopState.active) {
+      coopSend({ type: 'p_event', ev: 'pause', callsign: pilotCallsign });
+    }
     updateHud();
   }
 
@@ -2275,6 +2416,9 @@
     state.mode = 'playing';
     pauseScreenEl.hidden = true;
     lastTime = performance.now();
+    if (coopState.active) {
+      coopSend({ type: 'p_event', ev: 'resume', callsign: pilotCallsign });
+    }
     updateHud();
   }
 
@@ -2284,10 +2428,10 @@
   });
   btnRetryGame.addEventListener('click', () => {
     sound.unlock();
-    if (coopState.active && coopState.ws && coopState.ws.readyState === 1) {
+    if (coopState.active && coopState.ws && coopState.ws.readyState === 1 && coopState.partner.aiReason !== 'left') {
       coopSend({ type: 'start_coop' });
     } else {
-      startNewGame(false);
+      startNewGame(coopState.active);
     }
   });
   btnBackHangar.addEventListener('click', () => openHangar());
@@ -2379,7 +2523,7 @@
         fireWeapons();
       }
 
-      // 2-Player Co-op: Broadcast our live position/status (~20Hz) & interpolate/fire Partner fighter!
+      // 2-Player Co-op: Broadcast our live position/status (~20Hz) & run Partner / AI Autopilot fighter!
       if (coopState.active) {
         coopState.syncTimer -= dt;
         if (coopState.syncTimer <= 0) {
@@ -2399,8 +2543,51 @@
         }
         const pt = coopState.partner;
         if (pt.present && pt.lives > 0) {
-          pt.x += (pt.targetX - pt.x) * Math.min(1, 16 * dt);
-          pt.y += (pt.targetY - pt.y) * Math.min(1, 16 * dt);
+          // Heartbeat timeout check: if partner hasn't sent a packet for 3.6s (backgrounded/frozen), switch to AI Autopilot!
+          if (!pt.aiMode && pt.lastPacketAt > 0 && performance.now() - pt.lastPacketAt > 3600) {
+            switchPartnerToAi('pause');
+          }
+
+          if (pt.aiMode) {
+            pt.aiWeavePhase = (pt.aiWeavePhase || 0) + dt;
+            pt.power = Math.max(pt.power || 1, Math.min(5, Math.ceil(state.stage / 2) + 1));
+
+            // 1) Tactical Target Acquisition (Boss -> Nearest Visible Enemy -> Flank Formation)
+            let desiredX = (p.x < W * 0.5 ? W * 0.68 : W * 0.32) + Math.sin(pt.aiWeavePhase * 1.9) * 38;
+            let desiredY = H - 96 + Math.cos(pt.aiWeavePhase * 1.6) * 24;
+
+            const aiTarget = findNearestTarget(pt.x, pt.y);
+            if (aiTarget) {
+              const flankOffset = p.x < aiTarget.x ? 34 : -34;
+              desiredX = aiTarget.x + flankOffset + Math.sin(pt.aiWeavePhase * 2.5) * 26;
+            }
+
+            // 2) Active Enemy Bullet Evasion Vector
+            let dodgeX = 0;
+            let dodgeY = 0;
+            for (let bi = 0; bi < state.enemyBullets.length; bi++) {
+              const eb = state.enemyBullets[bi];
+              const dx = pt.x - eb.x;
+              const dy = pt.y - eb.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 0 && dist < 76 && dy > -18) {
+                const push = ((76 - dist) / 76) * 115;
+                dodgeX += (dx >= 0 ? 1 : -1) * push;
+                dodgeY += (dy >= 0 ? 0.5 : -0.5) * push;
+              }
+            }
+
+            pt.targetX = Math.max(30, Math.min(W - 30, desiredX + dodgeX));
+            pt.targetY = Math.max(H * 0.56, Math.min(H - 52, desiredY + dodgeY));
+            const moveDeltaX = pt.targetX - pt.x;
+            pt.bank += (Math.max(-1, Math.min(1, moveDeltaX * 0.04)) - pt.bank) * Math.min(1, 10 * dt);
+            pt.x += moveDeltaX * Math.min(1, 7.5 * dt);
+            pt.y += (pt.targetY - pt.y) * Math.min(1, 7.5 * dt);
+          } else {
+            pt.x += (pt.targetX - pt.x) * Math.min(1, 16 * dt);
+            pt.y += (pt.targetY - pt.y) * Math.min(1, 16 * dt);
+          }
+
           pt.fireCd -= dt;
           if (pt.fireCd <= 0) {
             pt.fireCd = 0.14;
@@ -2413,8 +2600,26 @@
                 y: pt.y - 24,
                 vx: ox * 1.4,
                 vy: -790,
-                dmg: 0.42,
+                dmg: 0.44,
                 pierce: false
+              });
+            });
+          }
+
+          // AI / Partner Homing Sub-Weapon Support
+          pt.missileCd = (pt.missileCd || 0) - dt;
+          if (pt.missileCd <= 0 && pt.power >= 2) {
+            pt.missileCd = 0.58;
+            [-14, 14].forEach((ox) => {
+              state.bullets.push({
+                kind: 'missile',
+                x: pt.x + ox,
+                y: pt.y - 12,
+                vx: ox * 3.5,
+                vy: -360,
+                dmg: 0.72,
+                pierce: false,
+                smokeTick: 0
               });
             });
           }
@@ -3251,12 +3456,14 @@
         }
 
         const otherSlot = coopState.mySlot === 1 ? 2 : 1;
+        const tagText = pt.aiMode ? `🤖 ${pt.callsign} [AI]` : `${otherSlot}P ${pt.callsign}`;
+        const tagW = Math.max(64, tagText.length * 7.2);
         ctx.font = '700 10px Chakra Petch, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.72)';
-        ctx.fillRect(pt.x - 30, pt.y + 34, 60, 14);
-        ctx.fillStyle = '#38bdf8';
-        ctx.fillText(`${otherSlot}P ${pt.callsign}`, pt.x, pt.y + 44);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
+        ctx.fillRect(pt.x - tagW / 2, pt.y + 34, tagW, 14);
+        ctx.fillStyle = pt.aiMode ? '#34d399' : '#38bdf8';
+        ctx.fillText(tagText, pt.x, pt.y + 44);
       }
     }
 
