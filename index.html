@@ -14,7 +14,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./style.css?v=3.5.1" />
+  <link rel="stylesheet" href="./style.css?v=3.5.2" />
 
   <script>
     window.__pwaDeferredPrompt = null;
@@ -85,6 +85,10 @@
         </div>
 
         <div class="tactical-actions">
+          <button type="button" class="tactical-swap-btn" id="btn-hud-swap-hand" title="폭탄·편대비행 버튼 좌/우 손 위치 전환" aria-label="스킬 버튼 좌우 배치 전환">
+            <span id="hud-hand-label">⇄ 좌측배치</span>
+          </button>
+
           <button type="button" class="tactical-btn tactical-btn--wing" id="btn-formation" title="호위 편대기 지원 출격 (쿨타임 12초)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 3L14.8 10.5L22 14L14.8 15.8L12 21L9.2 15.8L2 14L9.2 10.5L12 3Z" fill="currentColor" />
@@ -146,8 +150,13 @@
           </div>
 
           <div class="dock-header">
-            <span class="dock-header__title">출격 기체 선택</span>
-            <span class="dock-header__spec" id="selected-fighter-desc">확산 발칸 · 유도 미사일</span>
+            <div class="dock-header__left">
+              <span class="dock-header__title">출격 기체</span>
+              <span class="dock-header__spec" id="selected-fighter-desc">확산 발칸 · 유도 미사일</span>
+            </div>
+            <button type="button" class="hand-layout-chip" id="btn-standby-hand-layout" title="폭탄·편대비행 버튼 좌/우 배치 전환">
+              ⇄ 버튼: 우측 배치
+            </button>
           </div>
 
           <div class="fighter-grid" role="radiogroup" aria-label="출격 기체 선택">
@@ -379,6 +388,6 @@
     </main>
   </div>
 
-  <script src="./game.js?v=3.5.1"></script>
+  <script src="./game.js?v=3.5.2"></script>
 </body>
 </html>

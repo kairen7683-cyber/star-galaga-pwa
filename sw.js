@@ -1,9 +1,9 @@
-const CACHE_NAME = 'strikers-1945-remastered-v3.5.1';
+const CACHE_NAME = 'strikers-1945-remastered-v3.5.2';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
-  './style.css?v=3.5.1',
-  './game.js?v=3.5.1',
+  './style.css?v=3.5.2',
+  './game.js?v=3.5.2',
   './manifest.webmanifest',
   './favicon.png',
   './icons/icon-192.png',
