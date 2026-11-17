@@ -578,7 +578,7 @@
       appShellEl.classList.toggle('is-left-handed', handLayout === 'left');
     }
     if (hudHandLabelEl) {
-      hudHandLabelEl.textContent = handLayout === 'left' ? '⇄ 우측으로' : '⇄ 좌측으로';
+      hudHandLabelEl.textContent = handLayout === 'left' ? '⇄ 우측' : '⇄ 좌측';
     }
     if (btnStandbyHandLayout) {
       btnStandbyHandLayout.textContent = handLayout === 'left' ? '스킬: 좌측 배치 ⇄' : '스킬: 우측 배치 ⇄';
