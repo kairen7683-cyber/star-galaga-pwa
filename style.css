@@ -716,6 +716,7 @@ body {
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .quiet-install-btn {
@@ -749,6 +750,15 @@ body {
   background: hsla(215, 56%, 5%, 0.78);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+#coop-modal {
+  z-index: 50;
+}
+
+#ranking-modal,
+#install-modal {
+  z-index: 60;
 }
 
 .modal-panel {

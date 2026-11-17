@@ -802,20 +802,17 @@
   // Initial background rank check on app open
   fetchLeaderboard('all');
 
+  const openRankingModal = (mode) => {
+    sound.unlock();
+    sound.medal();
+    rankingModalEl.hidden = false;
+    fetchLeaderboard(mode);
+  };
   if (btnOpenRanking) {
-    btnOpenRanking.addEventListener('click', () => {
-      sound.unlock();
-      sound.medal();
-      rankingModalEl.hidden = false;
-      fetchLeaderboard(currentRankMode);
-    });
+    btnOpenRanking.addEventListener('click', () => openRankingModal(currentRankMode));
   }
   if (btnGameoverRanking) {
-    btnGameoverRanking.addEventListener('click', () => {
-      sound.unlock();
-      rankingModalEl.hidden = false;
-      fetchLeaderboard('all');
-    });
+    btnGameoverRanking.addEventListener('click', () => openRankingModal('all'));
   }
   if (btnCloseRanking) {
     btnCloseRanking.addEventListener('click', () => {
