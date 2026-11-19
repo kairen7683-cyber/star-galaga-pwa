@@ -647,6 +647,8 @@
     mySlot: 1,
     seed: 1945,
     syncTimer: 0,
+    worldSyncTimer: 0,
+    nextSyncId: 1,
     partner: {
       present: false,
       callsign: 'WINGMAN',
@@ -668,6 +670,215 @@
       aiWeavePhase: 0
     }
   };
+
+  function nextSyncId() {
+    return coopState.nextSyncId++;
+  }
+
+  function isCoopGuest() {
+    return (
+      coopState.active &&
+      coopState.mySlot === 2 &&
+      !(coopState.partner.aiMode && coopState.partner.aiReason === 'left')
+    );
+  }
+
+  function applyWorldSync(msg) {
+    if (!msg || state.mode !== 'playing') return;
+
+    // 1. Lock Stage & Wave progression to 1P Host
+    if (typeof msg.stage === 'number' && msg.stage !== state.stage) {
+      const prevStage = state.stage;
+      state.stage = msg.stage;
+      state.waveStep = msg.waveStep || 0;
+      updateHud();
+      if (msg.stage > prevStage) {
+        const nextBiomes = [
+          '남태평양 산호초 요새 해역 — 난이도 상승!',
+          '강철 협곡 해군 공창 돌입 — 적 화력 강화!',
+          '심야 적색 폭풍 함대 진입 — 고난도 탄막 주의!'
+        ];
+        showBanner(`ROUND ${state.stage} START`, nextBiomes[(state.stage - 1) % 3], false, 2500);
+        submitOnlineScore();
+      }
+    } else if (typeof msg.waveStep === 'number') {
+      state.waveStep = msg.waveStep;
+    }
+
+    // 2. Reconcile Enemies by syncId
+    if (Array.isArray(msg.enemies)) {
+      const localById = new Map();
+      for (let i = 0; i < state.enemies.length; i++) {
+        const en = state.enemies[i];
+        if (en.syncId) localById.set(en.syncId, en);
+      }
+      const hostIds = new Set();
+      for (let i = 0; i < msg.enemies.length; i++) {
+        const re = msg.enemies[i];
+        hostIds.add(re.id);
+        const tx = (re.nx || 0.5) * W;
+        const ty = (re.ny || 0) * H;
+        const existing = localById.get(re.id);
+        if (existing) {
+          if (Math.hypot(tx - existing.x, ty - existing.y) > 4) {
+            existing.x += (tx - existing.x) * 0.45;
+            existing.y += (ty - existing.y) * 0.45;
+          }
+          existing.vx = re.vx;
+          existing.vy = re.vy;
+          existing.hp = re.hp;
+          existing.maxHp = re.mhp || existing.maxHp;
+        } else {
+          state.enemies.push({
+            syncId: re.id,
+            kind: re.k,
+            x: tx,
+            y: ty,
+            vx: re.vx,
+            vy: re.vy,
+            hp: re.hp,
+            maxHp: re.mhp || re.hp,
+            shootCd: 1.15,
+            ground: Boolean(re.g),
+            score: re.sc || 180
+          });
+        }
+      }
+      for (let i = state.enemies.length - 1; i >= 0; i--) {
+        const en = state.enemies[i];
+        if (en.syncId && !hostIds.has(en.syncId)) {
+          state.enemies.splice(i, 1);
+        }
+      }
+    }
+
+    // 3. Reconcile Stage Boss
+    if (msg.boss) {
+      const rb = msg.boss;
+      if (!state.boss) {
+        const bossDef = HD.bosses[rb.idx] || {
+          name: rb.name || 'XB-0 IRON VALKYRIE',
+          w: 276,
+          h: 130,
+          turretOffsetX: 74,
+          turretOffsetY: 8
+        };
+        state.bossActive = true;
+        sound.warningSiren();
+        showBanner('🚨 WARNING 🚨', `초거대 결전 요새 [${rb.name}] 출현!`, true, 2700);
+        state.boss = {
+          bossIdx: rb.idx,
+          name: rb.name,
+          w: bossDef.w,
+          h: bossDef.h,
+          txOff: bossDef.turretOffsetX,
+          tyOff: bossDef.turretOffsetY,
+          x: (rb.nx || 0.5) * W,
+          y: (rb.ny || -0.1) * H,
+          targetY: 122,
+          vx: rb.vx || 48,
+          hp: rb.hp,
+          maxHp: rb.mhp,
+          leftTurretHp: rb.lhp,
+          maxTurretHp: rb.mthp,
+          rightTurretHp: rb.rhp,
+          phase: rb.ph || 1,
+          patternTimer: 1.45,
+          spiralAngle: 0,
+          hitFlash: 0,
+          smokeTimer: 0
+        };
+        bossNameEl.textContent = `WARNING // ${rb.name}`;
+        bossHudEl.classList.add('is-active');
+      } else {
+        const b = state.boss;
+        const tx = (rb.nx || 0.5) * W;
+        const ty = (rb.ny || 0.18) * H;
+        b.x += (tx - b.x) * 0.45;
+        b.y += (ty - b.y) * 0.45;
+        b.vx = rb.vx;
+        b.hp = rb.hp;
+        b.maxHp = rb.mhp;
+        b.leftTurretHp = rb.lhp;
+        b.rightTurretHp = rb.rhp;
+        b.maxTurretHp = rb.mthp;
+        if (rb.ph > b.phase) {
+          b.phase = rb.ph;
+          b.patternTimer = 0.8;
+          state.screenShake = 0.45;
+          spawnExplosion(b.x, b.y, 1.6, 20, true);
+          sound.explodeBig();
+          state.enemyBullets = [];
+          showBanner(
+            b.phase === 3 ? 'CRITICAL OVERDRIVE!' : 'ARMOR SHATTERED!',
+            b.phase === 3 ? '최종 3페이즈 코어 폭주!' : '보스 2페이즈 돌입 — 회전 탄막 개방!',
+            true,
+            1650
+          );
+        }
+      }
+      const pct = Math.max(0, Math.ceil((state.boss.hp / Math.max(1, state.boss.maxHp)) * 100));
+      bossHpPctEl.textContent = `${pct}%`;
+      bossHpFillEl.style.width = `${pct}%`;
+    } else {
+      if (state.boss) {
+        const bx = state.boss.x;
+        const by = state.boss.y;
+        state.boss = null;
+        state.bossActive = false;
+        bossHudEl.classList.remove('is-active');
+        state.enemyBullets = [];
+        state.screenShake = 0.85;
+        state.flashAlpha = 0.7;
+        sound.explodeBig();
+        spawnExplosion(bx, by, 2.4, 34, true);
+      }
+      state.bossActive = Boolean(msg.bossActive);
+    }
+
+    // 4. Reconcile Items by syncId
+    if (Array.isArray(msg.items)) {
+      const localItems = new Map();
+      for (let i = 0; i < state.items.length; i++) {
+        const it = state.items[i];
+        if (it.syncId) localItems.set(it.syncId, it);
+      }
+      const hostItemIds = new Set();
+      for (let i = 0; i < msg.items.length; i++) {
+        const ri = msg.items[i];
+        hostItemIds.add(ri.id);
+        const tx = (ri.nx || 0.5) * W;
+        const ty = (ri.ny || 0.3) * H;
+        const existing = localItems.get(ri.id);
+        if (existing) {
+          if (Math.hypot(tx - existing.x, ty - existing.y) > 5) {
+            existing.x += (tx - existing.x) * 0.45;
+            existing.y += (ty - existing.y) * 0.45;
+          }
+          existing.vx = ri.vx;
+          existing.vy = ri.vy;
+          existing.bounces = ri.b;
+        } else {
+          state.items.push({
+            syncId: ri.id,
+            kind: ri.k,
+            x: tx,
+            y: ty,
+            vx: ri.vx,
+            vy: ri.vy,
+            bounces: ri.b,
+            spin: 0
+          });
+        }
+      }
+      for (let i = state.items.length - 1; i >= 0; i--) {
+        const it = state.items[i];
+        if (it.syncId && !hostItemIds.has(it.syncId)) {
+          state.items.splice(i, 1);
+        }
+      }
+    }
+  }
 
   const state = {
     mode: 'title',
@@ -1071,11 +1282,32 @@
         } else if (msg.ev === 'formation') {
           triggerFormationFlight(true);
         } else if (msg.ev === 'enemy_kill') {
-          const target = state.enemies[msg.idx];
+          const target =
+            typeof msg.syncId === 'number'
+              ? state.enemies.find((e) => e.syncId === msg.syncId)
+              : state.enemies[msg.idx];
           if (target && !target.dead) {
             damageEnemy(target, 9999, true);
           }
-        } else if (msg.ev === 'boss_dmg' && state.boss) {
+        } else if (msg.ev === 'item_take' && typeof msg.syncId === 'number') {
+          const idx = state.items.findIndex((it) => it.syncId === msg.syncId);
+          if (idx >= 0) {
+            const taken = state.items[idx];
+            state.items.splice(idx, 1);
+            if (taken.kind !== 'medal') {
+              state.floatingTexts.push({
+                x: taken.x,
+                y: taken.y - 10,
+                text: `${coopState.partner.callsign} 획득!`,
+                color: '#38bdf8',
+                life: 0.9,
+                maxLife: 0.9
+              });
+            }
+          }
+        } else if (msg.ev === 'world_sync' && isCoopGuest()) {
+          applyWorldSync(msg);
+        } else if (msg.ev === 'boss_dmg' && state.boss && !isCoopGuest()) {
           damageBoss(msg.dmg || 2, state.boss.x, state.boss.y, true, true);
         }
       }
@@ -1360,9 +1592,11 @@
     }
   }
 
-  function spawnItem(x, y, kind) {
+  function spawnItem(x, y, kind, syncId = 0) {
+    if (isCoopGuest() && !syncId) return;
     const isMedal = kind === 'medal';
     state.items.push({
+      syncId: syncId || nextSyncId(),
       kind,
       x: Math.max(24, Math.min(W - 24, x)),
       y: Math.max(44, y),
@@ -1708,6 +1942,7 @@
   }
 
   function spawnEnemyWave() {
+    if (isCoopGuest()) return 0;
     if (state.bossActive) return 0;
 
     state.waveStep++;
@@ -1894,6 +2129,7 @@
   }
 
   function spawnStageBoss() {
+    if (isCoopGuest()) return;
     state.bossActive = true;
     sound.warningSiren();
 
@@ -1948,13 +2184,18 @@
   }
 
   function damageEnemy(en, dmg, fromPartner = false) {
+    if (isCoopGuest() && !fromPartner) {
+      en.hp = Math.max(0.2, en.hp - dmg);
+      en.hitFlash = 0.055;
+      return;
+    }
     en.hp -= dmg;
     en.hitFlash = 0.055;
     if (en.hp <= 0 && !en.dead) {
       en.dead = true;
-      if (coopState.active && !fromPartner) {
-        const idx = state.enemies.indexOf(en);
-        if (idx >= 0) coopSend({ type: 'p_event', ev: 'enemy_kill', idx });
+      if (coopState.active && !fromPartner && !isCoopGuest()) {
+        if (!en.syncId) en.syncId = nextSyncId();
+        coopSend({ type: 'p_event', ev: 'enemy_kill', syncId: en.syncId });
       }
       const isHeavy = en.kind === 'gunship' || en.kind === 'battleship';
       spawnExplosion(en.x, en.y, isHeavy ? 1.55 : 0.85, isHeavy ? 18 : 8, isHeavy);
@@ -1996,6 +2237,7 @@
     const b = state.boss;
     if (!b) return;
     b.hitFlash = 0.045;
+    if (isCoopGuest() && !fromPartner) return;
 
     const lx = b.x - b.txOff;
     const rx = b.x + b.txOff;
@@ -2309,6 +2551,8 @@
     coopState.active = Boolean(isCoop);
     if (coopState.active) {
       setWaveSeed(coopState.seed);
+      coopState.nextSyncId = 1;
+      coopState.worldSyncTimer = 0;
       coopState.partner.x = coopState.mySlot === 1 ? W * 0.68 : W * 0.32;
       coopState.partner.y = H - 84;
       coopState.partner.targetX = coopState.partner.x;
@@ -2537,6 +2781,63 @@
             callsign: pilotCallsign,
             score: state.score
           });
+        }
+        if (coopState.mySlot === 1) {
+          coopState.worldSyncTimer -= dt;
+          if (coopState.worldSyncTimer <= 0) {
+            coopState.worldSyncTimer = 0.1;
+            for (let ei = 0; ei < state.enemies.length; ei++) {
+              if (!state.enemies[ei].syncId) state.enemies[ei].syncId = nextSyncId();
+            }
+            for (let ii = 0; ii < state.items.length; ii++) {
+              if (!state.items[ii].syncId) state.items[ii].syncId = nextSyncId();
+            }
+            coopSend({
+              type: 'p_event',
+              ev: 'world_sync',
+              stage: state.stage,
+              waveStep: state.waveStep,
+              bossActive: state.bossActive,
+              enemies: state.enemies
+                .filter((e) => !e.dead)
+                .map((e) => ({
+                  id: e.syncId,
+                  k: e.kind,
+                  nx: Number((e.x / W).toFixed(3)),
+                  ny: Number((e.y / H).toFixed(3)),
+                  vx: Math.round(e.vx),
+                  vy: Math.round(e.vy),
+                  hp: Number(e.hp.toFixed(1)),
+                  mhp: Number(e.maxHp.toFixed(1)),
+                  g: e.ground ? 1 : 0,
+                  sc: e.score
+                })),
+              boss: state.boss
+                ? {
+                    idx: state.boss.bossIdx,
+                    name: state.boss.name,
+                    nx: Number((state.boss.x / W).toFixed(3)),
+                    ny: Number((state.boss.y / H).toFixed(3)),
+                    vx: Math.round(state.boss.vx),
+                    hp: Number(state.boss.hp.toFixed(1)),
+                    mhp: state.boss.maxHp,
+                    lhp: Number(state.boss.leftTurretHp.toFixed(1)),
+                    rhp: Number(state.boss.rightTurretHp.toFixed(1)),
+                    mthp: state.boss.maxTurretHp,
+                    ph: state.boss.phase
+                  }
+                : null,
+              items: state.items.map((it) => ({
+                id: it.syncId,
+                k: it.kind,
+                nx: Number((it.x / W).toFixed(3)),
+                ny: Number((it.y / H).toFixed(3)),
+                vx: Math.round(it.vx),
+                vy: Math.round(it.vy),
+                b: it.bounces
+              }))
+            });
+          }
         }
         const pt = coopState.partner;
         if (pt.present && pt.lives > 0) {
@@ -3088,6 +3389,9 @@
         const dist = Math.hypot(p.x - it.x, p.y - it.y);
         if (dist < 27) {
           state.items.splice(i, 1);
+          if (coopState.active && it.syncId) {
+            coopSend({ type: 'p_event', ev: 'item_take', syncId: it.syncId, kind: it.kind });
+          }
           collectItem(it);
           continue;
         }
